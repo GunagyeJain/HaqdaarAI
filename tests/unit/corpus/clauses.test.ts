@@ -105,6 +105,13 @@ describe('refusing to guess', () => {
   });
 
   it.each([
+    // Real prose from the Udyogini Scheme. A cap that is waived for some
+    // applicants is not a cap. Emitting `annualIncome < 150000` here would
+    // wrongly exclude every widowed or disabled woman above that figure.
+    'The family income should be less than ₹1,50,000. No limit on family income for widowed or disabled women.',
+    'Income limit of ₹2,50,000, except for SC/ST applicants.',
+    'The age limit is 35 years, relaxable by 5 years for reserved categories.',
+    'Age limit of 30 years is exempted for persons with disabilities.',
     'Unless otherwise specified, the applicant must be 18 years old.',
     'Provided that the applicant has not availed this benefit before.',
     'Preference will be given to deserving candidates.',
@@ -164,5 +171,48 @@ describe('synthesizeRuleTree', () => {
       op: 'AND',
       clauses: [{ field: 'gender', op: 'eq', value: 'female' }],
     });
+  });
+});
+
+describe('prose that is not a bullet list', () => {
+  // Real prose from Pradhan Mantri Suraksha Bima Yojana. myscheme does not
+  // always use bullets, and this scheme states genuine criteria in one
+  // paragraph.
+  const pmsby =
+    'Individual bank account holders of participating banks aged between 18 years ' +
+    '(completed) and 70 years (age nearer birthday) who give their consent to join / ' +
+    'enable auto-debit, will be enrolled into the scheme.';
+
+  it('never reduces unparsed criteria to an empty AND', () => {
+    // An empty AND is vacuously PASS. Returning one here would tell every
+    // citizen they qualify for a scheme whose criteria we simply failed to
+    // read — the failure must surface as UNKNOWN, not as a false PASS.
+    const tree = synthesizeRuleTree(pmsby);
+    expect(tree).not.toEqual({ op: 'AND', clauses: [] });
+  });
+
+  it('holds unparsed criteria at UNKNOWN rather than PASS', () => {
+    const tree = synthesizeRuleTree(pmsby);
+    const clauses = tree.op === 'AND' ? tree.clauses : [];
+    expect(clauses.length).toBeGreaterThan(0);
+    // At least one clause must be undecidable, so the scheme cannot pass silently.
+    expect(clauses.some((c) => c.op === 'WILDCARD')).toBe(true);
+  });
+
+  it('still parses recognisable criteria from unbulleted prose', () => {
+    const tree = synthesizeRuleTree('The applicant must be at least 18 years of age.');
+    const clauses = tree.op === 'AND' ? tree.clauses : [];
+    expect(clauses).toContainEqual({ field: 'age', op: 'gte', value: 18 });
+  });
+
+  it('splits multi-sentence prose into separate clauses', () => {
+    const tree = synthesizeRuleTree(
+      'The applicant must be a woman. The applicant must be from a rural area.',
+    );
+    const clauses = tree.op === 'AND' ? tree.clauses : [];
+    expect(clauses).toEqual([
+      { field: 'gender', op: 'eq', value: 'female' },
+      { field: 'residence', op: 'eq', value: 'rural' },
+    ]);
   });
 });

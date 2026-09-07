@@ -26,6 +26,19 @@ import { extractNumbers } from './numerals';
 const AMBIGUITY_MARKERS =
   /\b(?:if|unless|provided\s+that|in\s+case|subject\s+to|discretion|preference|whichever|either|as\s+decided|may\s+be)\b/i;
 
+/**
+ * Language that waives, relaxes, or carves an exception out of a criterion.
+ *
+ * A cap that does not apply to everyone is not a cap. The Udyogini Scheme caps
+ * family income at ₹1,50,000 and then says "No limit on family income for
+ * widowed or disabled women" — emitting the cap alone would wrongly exclude
+ * exactly the applicants the exception exists to protect.
+ *
+ * We do not model exception scope, so any bullet carrying one is undecidable.
+ */
+const EXCEPTION_MARKERS =
+  /\b(?:no\s+limit|except|exempt\w*|relaxa\w*|relaxable|not\s+applicable|waived|shall\s+not\s+apply|other\s+than)\b/i;
+
 const AGE_CONTEXT = /\b(?:age|aged|years?|yrs?)\b/i;
 const INCOME_CONTEXT = /\bincome\b/i;
 
@@ -203,9 +216,10 @@ const wildcard = (sourceText: string, reason: WildcardClause['reason']): Wildcar
 export function synthesizeClause(prose: string): RuleNode {
   const text = prose.trim();
 
-  // Qualified or conditional prose is not safely reducible to one clause, even
-  // when its parts look parseable. This guard runs first for that reason.
-  if (AMBIGUITY_MARKERS.test(text)) {
+  // Qualified, conditional, or partially-waived prose is not safely reducible
+  // to one clause, even when its parts look parseable. These guards run first
+  // for that reason.
+  if (AMBIGUITY_MARKERS.test(text) || EXCEPTION_MARKERS.test(text)) {
     return wildcard(text, 'ambiguous');
   }
 
@@ -229,19 +243,48 @@ function bulletText(line: string): string | null {
   return text ? text : null;
 }
 
+/** Splits a paragraph into sentences, for prose that is not a bullet list. */
+function sentences(text: string): string[] {
+  return text
+    .split(/(?<=[.!?])\s+/)
+    .map((sentence) => sentence.trim())
+    .filter((sentence) => sentence.length > 0);
+}
+
 /**
  * Synthesises a rule tree from a scheme's `eligibilityDescription_md`.
  *
  * Criteria are conjoined: myscheme lists them as requirements a citizen must
- * satisfy together. An empty section yields an empty AND, which is vacuously
- * PASS — correct, because a scheme that states no criteria disqualifies nobody.
+ * satisfy together.
+ *
+ * Not every scheme uses bullets — Pradhan Mantri Suraksha Bima Yojana states
+ * real age bounds in a single paragraph — so unbulleted prose falls back to
+ * sentence splitting.
+ *
+ * THE EMPTY-AND HAZARD: an empty AND is vacuously PASS. That is correct only
+ * when the scheme genuinely states no criteria. If prose was present and we
+ * simply could not read it, returning an empty AND would tell every citizen
+ * they qualify for a scheme whose requirements we never parsed. In that case we
+ * emit a WILDCARD instead, so the scheme reads UNKNOWN — the honest answer.
  */
 export function synthesizeRuleTree(markdown: string): RuleNode {
-  const clauses = markdown
+  const text = markdown.trim();
+  if (text.length === 0) {
+    // No criteria stated at all: nothing disqualifies anyone. Vacuous PASS is right.
+    return { op: 'AND', clauses: [] };
+  }
+
+  const bullets = markdown
     .split('\n')
     .map(bulletText)
-    .filter((text): text is string => text !== null)
-    .map(synthesizeClause);
+    .filter((line): line is string => line !== null);
+
+  const segments = bullets.length > 0 ? bullets : sentences(text);
+  const clauses = segments.map(synthesizeClause);
+
+  if (clauses.length === 0) {
+    return { op: 'AND', clauses: [wildcard(text, 'unmodellable')] };
+  }
 
   return { op: 'AND', clauses };
 }

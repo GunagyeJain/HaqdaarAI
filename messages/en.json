@@ -1,0 +1,13 @@
+{
+  "app": {
+    "name": "Haqdaar.ai",
+    "tagline": "Find the government schemes you are entitled to",
+    "languageLabel": "Language",
+    "disclaimer": "An independent academic project, not affiliated with any government body. Always confirm eligibility with the official scheme authority before applying."
+  },
+  "home": {
+    "title": "Know what you are entitled to",
+    "subtitle": "Describe yourself by speaking or by typing, and find the welfare schemes you qualify for.",
+    "status": "Phase 0 — foundation"
+  }
+}

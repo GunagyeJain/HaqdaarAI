@@ -1,0 +1,22 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: haqdaar-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: haqdaar
+      POSTGRES_PASSWORD: haqdaar
+      POSTGRES_DB: haqdaar
+    ports:
+      # 5433 on the host to avoid colliding with any local Postgres on 5432
+      - '5433:5432'
+    volumes:
+      - haqdaar-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U haqdaar -d haqdaar']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  haqdaar-pgdata:

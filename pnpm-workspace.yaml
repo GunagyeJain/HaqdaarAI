@@ -1,0 +1,11 @@
+# pnpm 11 reads these settings here rather than from package.json.
+# Native postinstall builds required by the toolchain:
+#   esbuild        -> vitest, tsx
+#   @swc/core      -> next
+#   unrs-resolver  -> eslint import resolution
+#   @parcel/watcher-> drizzle-kit studio file watching
+allowBuilds:
+  '@parcel/watcher': true
+  '@swc/core': true
+  esbuild: true
+  unrs-resolver: true

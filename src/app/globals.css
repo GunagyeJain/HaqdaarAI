@@ -1,0 +1,50 @@
+@import 'tailwindcss';
+
+/**
+ * Design tokens.
+ *
+ * The target user may be on a low-end phone in bright sunlight, so contrast and
+ * tap-target size are correctness concerns here, not taste. Phase 6 does the full
+ * accessibility pass; these are the foundations it builds on.
+ */
+@theme {
+  --color-ink: oklch(0.22 0.02 250);
+  --color-ink-muted: oklch(0.48 0.02 250);
+  --color-surface: oklch(0.99 0.004 250);
+  --color-surface-raised: oklch(1 0 0);
+  --color-border: oklch(0.9 0.008 250);
+
+  --color-brand: oklch(0.52 0.15 250);
+  --color-brand-strong: oklch(0.42 0.16 250);
+
+  /* Verdict colours — carry meaning, so they must never be the only signal. */
+  --color-pass: oklch(0.55 0.14 150);
+  --color-fail: oklch(0.55 0.18 25);
+  --color-unknown: oklch(0.62 0.12 75);
+}
+
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+
+  body {
+    background-color: var(--color-surface);
+    color: var(--color-ink);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Indic scripts need more vertical room than Latin at the same font size. */
+  :lang(hi),
+  :lang(pa),
+  :lang(bn),
+  :lang(ta) {
+    line-height: 1.75;
+  }
+
+  /* A visible focus ring is a hard requirement, not a default to be overridden. */
+  :focus-visible {
+    outline: 2px solid var(--color-brand);
+    outline-offset: 2px;
+  }
+}

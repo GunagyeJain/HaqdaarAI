@@ -9,49 +9,73 @@ AI coding agent, so continuity lives here rather than in anyone's memory.
 
 ## Current State
 
-**Phase 6 substantially complete.** The accessibility pass is done and gated;
-deployment is configured and documented but **not executed** — that needs your
-Vercel and Neon accounts.
+*Last updated 2026-09-08.*
 
-Suites: **243 unit/integration · 43 eval · 70 e2e.** WCAG 2.1 AA clean across
-all five locales, desktop and mobile.
+**Phases 0–5 complete. Phase 6 is complete except the deploy itself**, which
+needs the developer's Vercel and Neon accounts.
 
-**The accessibility audit found real defects, which is why it exists.** The
-first run reported **54 colour-contrast violations**: the verdict colours were
-perfectly legible on this monitor and failed AA. For a tool aimed at people
-reading cheap screens in sunlight, that is not cosmetic. Text now uses darkened
-tokens kept separate from decorative ones, so a dot stays vivid without dragging
-its label below threshold. Dark mode was added at the same time — on the OLED
-panels common in this price bracket it costs less battery, which matters when a
-phone may be shared or charged infrequently.
+The application works end to end. A citizen completes a profile — by typing, or
+by speaking — in any of five languages and receives an explained match against a
+real 483-scheme corpus scraped from myscheme.gov.in.
 
-It also surfaced a performance problem: rendering all 455 ineligible schemes
-took over 30 seconds. Capped at 25 rendered cards with the full count always
-stated — a rendering limit, never a hidden result.
+### Verified numbers
 
-**The scheduled re-scrape workflow exists** (`.github/workflows/scrape.yml`),
-runs weekly, and treats the corpus-coverage gate as a real gate because unlike
-CI it has a corpus. It has **not yet fired**, and the pipeline document is right
-that an unverified re-scrape is a deployment blocker.
+| Metric (proposal §6) | Target | Measured |
+|---|---|---|
+| Response latency | median ≤2s | **338ms** typed, p95 758ms |
+| Extraction accuracy | 0% hallucinated | **0** across 38 transcripts (adversarial) |
+| Matching speed | <100ms | **52.9ms** server-side, 483 schemes |
+| Corpus coverage | ≥150 schemes | **483**, 98% with a modelled clause |
+| Reliability | graceful degradation | every fallback exercised |
+| Accessibility | WCAG 2.1 AA | clean, 5 locales, desktop + mobile |
+
+Suites: **243 unit/integration · 43 eval · 70 e2e.** All green.
+
+### Local environment
+
+Postgres runs in Docker (`pnpm db:up`, host port **5433**) and already holds the
+483-scheme corpus. `.env.local` exists, is gitignored, and holds working Sarvam
+and Groq keys. `GROQ_MODEL` is deliberately blank — the code defaults to
+`openai/gpt-oss-20b`, which is verified available.
+
+Two environment quirks worth knowing before debugging something that is not
+broken: pnpm needs `node-linker=hoisted` here (Windows symlink locks), and this
+network blocks `cdn.playwright.dev`, so Playwright drives system Chrome locally
+via `PW_CHANNEL` while CI uses the bundled browser.
 
 ## Next Step
 
-**Finish Phase 6 — deploy.** Follow [DEPLOYMENT.md](DEPLOYMENT.md): Neon
-project, migrations, corpus, Vercel import, `DATABASE_URL` secret. Then re-run
-the metrics against production and record them *next to* the local numbers
-rather than replacing them — the difference is itself a finding.
+**Deploy.** Follow [DEPLOYMENT.md](DEPLOYMENT.md): Neon project → migrations →
+corpus → Vercel import → `DATABASE_URL` repository secret. Then re-run the
+metrics against production and record them *beside* the local numbers rather
+than replacing them; the difference is itself a finding.
 
-Then **Phase 7 — pilot**.
+Then **Phase 7 — pilot** ([EVALUATION.md](EVALUATION.md) has the protocol).
 
-### Owed before the pilot, and not quietly dropped
+### Owed before the pilot — do not quietly drop these
 
-1. **Real Sarvam and Groq credentials.** The voice path has never run against a
-   live provider. This also unblocks the voice latency metric, which is
-   currently reported as unmeasured rather than approximated.
-2. **The manual audit** of 15 random schemes against their source prose. The
-   only check that catches a rule which is well-formed, correctly grounded, and
-   still wrong.
-3. **Verify the scheduled scrape fires** at least once.
+1. **Manual audit of 15 random schemes** against their `source_prose`. The only
+   check that catches a rule which is well-formed, correctly grounded, and still
+   wrong. This is human review time, not engineering time.
+2. **Verify the scheduled scrape fires once.** The pipeline document treats an
+   unverified re-scrape as a deployment blocker, and it is right.
+3. **A full live extraction eval run.** `pnpm test:eval` with `GROQ_API_KEY` set
+   takes ~9 minutes (paced to the free tier's 8000 TPM). The adversarial half
+   runs in CI already; the live half needs a deliberate run and its numbers
+   recorded in EVALUATION.md.
+
+### Known limitations, recorded rather than hidden
+
+- **Grounding checks presence, not attribution.** A transcript containing
+  "60 percent disability" will ground an extracted `age` of 60. Pinned by a test.
+  Invariant 3 — the citizen confirming values in editable boxes — is the barrier
+  that catches this in practice.
+- **PASS verdicts are rare and that is correct.** ~1,100 clauses across the
+  corpus are `WILDCARD`, because the prose states criteria we deliberately refuse
+  to model rather than guess at. A wildcard is UNKNOWN forever, so most schemes
+  cannot reach PASS. The UNKNOWN set is the actionable output, not a failure.
+- **State names are English across all locales.** A scoping decision, not a
+  principle; revisit if pilot testers object.
 
 ---
 
@@ -114,7 +138,9 @@ a complete journey in Punjabi, against the real corpus with no AI provider confi
 - [x] Editable-fields confirmation gate (invariant 3), sharing the form's controls
 - [x] `POST /api/tts` with on-screen text always rendered in parallel
 - [x] Browser-native fallbacks, built in from the start and **tested**
-- [ ] Verify against real Sarvam and Groq keys — **still owed, needs credentials**
+- [x] Verified against real Sarvam and Groq keys (2026-09-08) — found four
+      defects that would have failed the whole voice path in the pilot; see
+      [ADR-011](DECISIONS.md#adr-011)
 
 **Exit met for the tested paths:** `tests/e2e/degradation.spec.ts` runs with no AI
 keys and proves the typed path is unaffected, capabilities are reported honestly,

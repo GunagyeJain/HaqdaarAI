@@ -42,8 +42,15 @@
       "familySize": "People in your family"
     },
     "option": {
-      "gender": { "male": "Male", "female": "Female", "transgender": "Transgender" },
-      "residence": { "urban": "Town or city", "rural": "Village" },
+      "gender": {
+        "male": "Male",
+        "female": "Female",
+        "transgender": "Transgender"
+      },
+      "residence": {
+        "urban": "Town or city",
+        "rural": "Village"
+      },
       "category": {
         "general": "General",
         "obc": "OBC",
@@ -131,5 +138,24 @@
     "heading": "One more question would help",
     "unblocks": "Answering this could decide {count} more schemes.",
     "skip": "Skip this"
+  },
+  "voice": {
+    "heading": "Or just speak",
+    "intro": "Tell us about yourself in your own words. We will fill in the form and you can correct anything before it is used.",
+    "start": "Start speaking",
+    "stop": "Stop",
+    "listening": "Listening…",
+    "processing": "Understanding what you said…",
+    "heardYou": "We heard",
+    "reviewHeading": "Please check these before we use them",
+    "reviewIntro": "We filled these in from what you said. Change anything that is wrong, then confirm.",
+    "confirm": "Use these answers",
+    "discard": "Discard",
+    "nothingFound": "We could not pick out any details from that. Try again, or fill the form in yourself.",
+    "dropped": "We ignored {count} value(s) we could not hear you say.",
+    "unavailable": "Voice input is not available right now.",
+    "unavailableHint": "The form below works exactly the same. Nothing is lost.",
+    "permissionDenied": "We could not use your microphone. Check your browser permission, or fill the form in below.",
+    "notSupported": "This browser cannot record audio. Please fill the form in below."
   }
 }

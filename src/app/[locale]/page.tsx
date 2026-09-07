@@ -3,6 +3,7 @@ import { setRequestLocale } from 'next-intl/server';
 import { LocaleSwitcher } from '@/components/locale-switcher';
 import { ProfileForm } from '@/components/profile-form';
 import { ResultsPanel } from '@/components/results-panel';
+import { VoiceConsole } from '@/components/voice-console';
 import { ProfileProvider } from '@/lib/profile-state';
 
 export default async function HomePage({ params }: { params: Promise<{ locale: string }> }) {
@@ -40,7 +41,12 @@ function Home() {
       </div>
 
       <div className="grid flex-1 items-start gap-8 lg:grid-cols-2">
-        <ProfileForm />
+        <div className="flex flex-col gap-6">
+          {/* Voice sits above the form deliberately: it is an accelerant, and
+              the form beneath it is always the fallback and always complete. */}
+          <VoiceConsole />
+          <ProfileForm />
+        </div>
         <ResultsPanel />
       </div>
 

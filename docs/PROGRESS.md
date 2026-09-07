@@ -9,51 +9,55 @@ AI coding agent, so continuity lives here rather than in anyone's memory.
 
 ## Current State
 
-**Phase 3 complete — the MVP gate is met.** A citizen completes a profile by
-typing alone, in any of five languages, and receives an explained match against
-the real 483-scheme corpus. No AI provider is involved anywhere in this path.
+**Phase 4 complete.** Voice is layered on the working typed path, strictly
+additively, with every fallback tested rather than assumed.
 
 | Gate | Result |
 |---|---|
 | `pnpm lint` / `pnpm typecheck` | clean |
-| `pnpm test` | **212 passed** |
-| `pnpm test:e2e` | **28 passed** (desktop + mobile) |
-| `match_schemes()` | 71ms server-side |
+| `pnpm test` | **230 passed** |
+| `pnpm test:e2e` | **44 passed** (desktop + mobile) |
 
-What exists: the shared profile state (which Phase 4's voice console will write
-into), the localized profile form, `POST /api/match`, result cards that explain
-every verdict and expose the government's own wording, and the information-gain
-next-question engine.
+What exists: provider contracts for STT/TTS/LLM selected by env var, Sarvam and
+Groq implementations, `MediaRecorder` capture with a browser-`SpeechRecognition`
+fallback, `POST /api/voice` and `POST /api/tts`, and the confirmation gate.
 
-**The question engine works as specified.** With age alone it asks for `state`
-(unblocking 440 schemes); with age and state it asks for `annualIncome`
-(unblocking 27) — deferring the sensitive question until it was genuinely the
-highest-value one. When every undecided scheme is blocked only by wildcards it
-returns null rather than asking something that could not help.
+**The hallucination gate is structural, not a prompt.** Whatever the model
+returns passes two independent checks before it can reach an editable box:
+`ProfileSchema` (strict, so an invented *field* is a parse error) and grounding
+(so an invented *value* is discarded). A transcript saying "hello, testing
+testing" yields an empty profile even if the model returns three plausible
+fields. What was dropped is reported to the citizen rather than hidden.
 
-**A false positive found by running the app.** A 42-year-old woman was shown
-PASS for "Concessional Bus Travel Facility to Women above 60". The prose reads
-"All women of 60 years and above residing in the State of Punjab" — a single
-sentence stating three criteria, of which synthesis emitted only the gender.
-Two fixes: `"N years and above"` is now a recognised bound, and synthesis emits
-every high-confidence pattern rather than the first. A disjunction guard keeps
-that safe: when an "or" sits alongside something we matched, we decline to
-assert rather than conjoin alternatives into a false negative.
+**Invariant 3 is literal, not approximate.** Suggestions render through
+`ProfileFieldControl` — the same component the typed form uses — and nothing
+reaches the profile, let alone the matcher, until the citizen confirms.
 
-**`pnpm db:renormalize` was the payoff for invariant 4.** Keeping the source
-prose was justified as an audit trail; it also meant the whole corpus could be
-rebuilt from stored prose in seconds instead of re-scraping for half an hour.
-The prose is the source of truth; the rule tree is a derived artefact.
+**A design flaw the degradation test caught.** A missing API key was surfacing
+as "extraction failed" (502) rather than "provider unavailable" (503), which
+would have shown the citizen an error instead of falling back. `extractProfile`
+now propagates `ProviderUnavailableError` rather than swallowing it: a model
+returning bad JSON and a provider that does not exist are categorically
+different, and only one of them is worth a retry.
+
+**A note on model drift.** Groq deprecated `llama-3.1-8b-instant` and
+`llama-3.3-70b-versatile` in June 2026, so the proposal's "Llama 3" no longer
+exists. The default is now a current strict-mode-capable model, overridable by
+env — which is exactly why ADR-004 said to verify the model rather than assume it.
+
+**Not yet exercised against real providers.** No Sarvam or Groq key is
+configured, so the live paths are unverified. The API shapes were taken from
+current vendor documentation, and the degradation suite runs in precisely the
+unconfigured state. Real keys are needed before the pilot.
 
 ## Next Step
 
-**Phase 4 — voice, strictly additive.** `MediaRecorder` capture, Sarvam STT/TTS
-behind the provider interface, Groq extraction in strict JSON-schema mode into
-the editable-fields confirmation gate, and browser-native fallbacks built in
-from the start and tested.
+**Phase 5 — the evaluation harness.** The ~50-transcript golden set for the 0%
+hallucination gate, latency instrumentation for both modes, and CI gates on
+corpus coverage and matching speed.
 
-Nothing in Phase 4 may make the typed path a prerequisite or a fallback — it is
-the product, and voice is an accelerant.
+Much of the machinery already exists — the grounding check is written and
+tested; Phase 5 is about turning each §6 metric into a CI-blocking number.
 
 ---
 
@@ -108,15 +112,19 @@ proven capable of catching a deliberate mutation.
 **Exit met:** verified end to end by `tests/e2e/typed-journey.spec.ts`, including
 a complete journey in Punjabi, against the real corpus with no AI provider configured.
 
-### Phase 4 — Voice (additive)
-- [ ] `MediaRecorder` capture
-- [ ] Provider interfaces + Sarvam STT/TTS implementations
-- [ ] Groq extraction in strict JSON-schema mode → Zod → one bounded retry
-- [ ] Editable-fields confirmation gate (invariant 3)
-- [ ] TTS playback with synchronized on-screen text
-- [ ] Browser-native fallbacks, **built in from the start and tested**
+### Phase 4 — Voice (additive) ✅
+- [x] `MediaRecorder` capture with browser `SpeechRecognition` fallback
+- [x] Provider interfaces + Sarvam STT/TTS implementations
+- [x] Groq extraction in strict JSON-schema mode → Zod → one bounded retry
+- [x] Grounding gate: no value survives that the transcript does not support
+- [x] Editable-fields confirmation gate (invariant 3), sharing the form's controls
+- [x] `POST /api/tts` with on-screen text always rendered in parallel
+- [x] Browser-native fallbacks, built in from the start and **tested**
+- [ ] Verify against real Sarvam and Groq keys — **still owed, needs credentials**
 
-**Exit:** full profile completable by voice; forced provider failure degrades gracefully.
+**Exit met for the tested paths:** `tests/e2e/degradation.spec.ts` runs with no AI
+keys and proves the typed path is unaffected, capabilities are reported honestly,
+and every provider failure degrades with an attributable reason.
 
 ### Phase 5 — Evaluation harness
 - [ ] ~50-transcript golden set incl. code-mixed and empty-transcript cases

@@ -1,7 +1,18 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import type { ProfileField } from '@/domain/rules/types';
+import {
+  CATEGORIES,
+  EDUCATION_LEVELS,
+  FIELD_KINDS,
+  GENDERS,
+  MARITAL_STATUSES,
+  OCCUPATIONS,
+  RESIDENCES,
+  STATE_CODES,
+  type ProfileField,
+} from '@/domain/rules/types';
+import { STATE_LABELS } from '@/lib/state-labels';
 
 /**
  * Form controls.
@@ -176,6 +187,102 @@ export function BooleanField({
           );
         })}
       </div>
+    </FieldShell>
+  );
+}
+
+/**
+ * Renders the correct control for any profile field.
+ *
+ * Shared by the typed form and the voice confirmation gate, so invariant 3 —
+ * "extracted fields land in the same editable boxes the typed path uses" — is
+ * literally true rather than approximately true.
+ */
+export function ProfileFieldControl({
+  field,
+  value,
+  highlighted,
+  onChange,
+}: {
+  field: ProfileField;
+  value: unknown;
+  highlighted?: boolean;
+  onChange: (value: unknown) => void;
+}) {
+  const t = useTranslations('profile');
+  const label = (t as unknown as (key: string) => string)(`field.${field}`);
+  const option = (group: string, key: string) =>
+    (t as unknown as (key: string) => string)(`option.${group}.${key}`);
+
+  const enumOptions: Partial<Record<ProfileField, { group: string; values: readonly string[] }>> = {
+    gender: { group: 'gender', values: GENDERS },
+    residence: { group: 'residence', values: RESIDENCES },
+    category: { group: 'category', values: CATEGORIES },
+    occupation: { group: 'occupation', values: OCCUPATIONS },
+    education: { group: 'education', values: EDUCATION_LEVELS },
+    maritalStatus: { group: 'maritalStatus', values: MARITAL_STATUSES },
+  };
+
+  if (field === 'state') {
+    return (
+      <SelectField
+        field={field}
+        label={label}
+        value={typeof value === 'string' ? value : undefined}
+        highlighted={highlighted}
+        options={STATE_CODES.map((code) => ({ value: code, label: STATE_LABELS[code] }))}
+        onChange={onChange}
+      />
+    );
+  }
+
+  const enumSpec = enumOptions[field];
+  if (enumSpec) {
+    return (
+      <SelectField
+        field={field}
+        label={label}
+        value={typeof value === 'string' ? value : undefined}
+        highlighted={highlighted}
+        options={enumSpec.values.map((v) => ({ value: v, label: option(enumSpec.group, v) }))}
+        onChange={onChange}
+      />
+    );
+  }
+
+  if (FIELD_KINDS[field] === 'boolean') {
+    return (
+      <BooleanField
+        field={field}
+        label={label}
+        value={typeof value === 'boolean' ? value : undefined}
+        highlighted={highlighted}
+        onChange={onChange}
+      />
+    );
+  }
+
+  if (FIELD_KINDS[field] === 'number') {
+    return (
+      <NumberField
+        field={field}
+        label={label}
+        value={typeof value === 'number' ? value : undefined}
+        highlighted={highlighted}
+        onChange={onChange}
+      />
+    );
+  }
+
+  return (
+    <FieldShell field={field} label={label} highlighted={highlighted}>
+      <input
+        id={`input-${field}`}
+        type="text"
+        className={controlClass}
+        value={typeof value === 'string' ? value : ''}
+        onChange={(event) => onChange(event.target.value || undefined)}
+      />
     </FieldShell>
   );
 }

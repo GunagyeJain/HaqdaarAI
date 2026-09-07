@@ -65,9 +65,10 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 | `src/domain/rules/` | Rule DSL types, Zod schemas, TS reference evaluator |
 | `src/domain/matching/` | `match_schemes()` caller and result shaping |
 | `src/domain/questions/` | Information-gain next-question engine |
+| `src/domain/corpus/` | Pure scrape normalization — numerals, grounding, clause synthesis |
 | `src/domain/providers/` | STT / TTS / LLM interfaces + implementations |
 | `src/db/` | Drizzle schema and SQL migrations (incl. `match_schemes()`) |
-| `scraper/` | Playwright interception worker |
+| `scraper/` | Playwright navigation worker — browser driving and orchestration only |
 | `messages/` | i18n strings — `en` `hi` `pa` `bn` `ta` |
 | `tests/` | `unit/` `integration/` `e2e/` `eval/` |
 

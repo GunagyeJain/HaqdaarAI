@@ -7,50 +7,88 @@ validation before insert.
 
 ## Reconnaissance findings
 
-Probed 2026-09-07. These findings changed the approach and are recorded because they are not
-obvious from the outside:
+Probed 2026-09-07 with a real browser. These findings shaped the design and are
+recorded because none of them is visible from the outside:
 
-| Probe | Result | Consequence |
-|---|---|---|
-| `robots.txt` | `User-agent: * / Allow: /`, only `/404` disallowed | Crawling is explicitly sanctioned |
-| Scheme detail page over plain HTTP | Returns *"Something went wrong"* — no content | **Client-rendered SPA. Raw-HTML scraping is not viable.** |
-| `sitemap.xml` | 40 static pages, **zero** scheme pages | Sitemap-driven crawling is not viable |
-| `api.myscheme.gov.in/search/v5/schemes` | **HTTP 401** | A real JSON API exists but is header-gated by the SPA's own bundle |
-| Platform scale | 4,700+ schemes published | The 150+ target has large headroom |
+| Probe | Result |
+|---|---|
+| `robots.txt` | `User-agent: * / Allow: /` — crawling is explicitly sanctioned |
+| Scheme page over plain HTTP | *"Something went wrong"* — client-rendered SPA, **raw-HTML scraping is not viable** |
+| `sitemap.xml` | 40 static pages, **zero** scheme pages — sitemap crawling is not viable |
+| API without a browser | **HTTP 401** |
+| API via `fetch()` from inside the page | **HTTP 403** — same-origin is not sufficient |
+| Header the app actually sends | `x-api-key`, a public constant in the client bundle |
+| Corpus size | **4,772 schemes** — the 150+ target has enormous headroom |
 
-The implementation pipeline document assumed Playwright DOM traversal. The 401 and the empty
-sitemap together rule out the simpler alternatives, and the SPA architecture rules out DOM
-scraping being *stable* even if it worked.
+### The two endpoints
 
----
+```
+LIST    api.myscheme.gov.in/search/v6/schemes
+          ?lang=en&q=[]&keyword=&sort=&from=<n>&size=<n>
+        -> data.hits.items[].fields{ slug, schemeName, briefDescription,
+             level, nodalMinistryName, schemeCategory, beneficiaryState, tags }
+        -> data.hits.page{ total, totalPages, pageNumber, from, size }
 
-## Strategy: response interception
+DETAIL  api.myscheme.gov.in/schemes/v6/public/schemes?slug=<slug>&lang=<locale>
+        -> data.en.basicDetails         { schemeName, level, schemeFor, ... }
+        -> data.en.schemeContent        { briefDescription, benefits_md, ... }
+        -> data.en.eligibilityCriteria  { eligibilityDescription_md }
+```
 
-Drive the real application with Playwright and **harvest the JSON it already receives**, rather
-than parsing rendered DOM.
+**Eligibility prose lives only on the detail endpoint**, so the scrape is
+necessarily two-stage: paginate the list for slugs, then fetch each scheme.
+
+`eligibilityDescription_md` is clean markdown with one criterion per bullet,
+which is what makes clause-per-bullet synthesis viable. A real example:
+
+```markdown
+- Finance is provided for Greenfield Enterprises.
+- If the applicant is a male, he must be from SC / ST category.
+- The age of the applicant must be at least 18 years.
+- The applicant must not be in default to any bank/financial institution.
+```
+
+Bullet 3 synthesises cleanly to `age >= 18`, and `18` is locatable in the prose,
+so it grounds. Bullets 1 and 4 are outside the closed profile schema and become
+`WILDCARD / unmodellable`. Bullet 2 is a conditional whose scope we do not model
+and becomes `WILDCARD / ambiguous`. That distribution is normal and expected:
+partial structure plus honest UNKNOWNs, never a guess.
+
+## Strategy: navigate and intercept
+
+Drive the real application with Playwright and **harvest the JSON the browser already
+receives**, rather than parsing rendered DOM or calling the API ourselves.
 
 ```ts
 page.on('response', async (res) => {
-  if (res.url().includes('/search/v5/schemes') && res.ok()) {
-    queue.push(await res.json());          // structured JSON, not scraped markup
+  if (res.url().includes('/schemes/v6/public/schemes') && res.ok()) {
+    capture(await res.json());        // structured JSON, not scraped markup
   }
 });
+await page.goto(`https://www.myscheme.gov.in/schemes/${slug}`);
 ```
 
-Then paginate by driving the UI as a user would.
+**Why not use the API key.** Reconnaissance found the `x-api-key` the site ships in its
+client bundle, and replaying it would be roughly twenty times faster. We deliberately do
+not ([ADR-009](DECISIONS.md#adr-009)). Navigating the site is unambiguously the behaviour
+robots.txt sanctions, needs no undocumented internal API, and comfortably meets the corpus
+target. Speed we do not need is not worth the ambiguity.
 
 **Why this beats DOM traversal:**
 
-- We receive **structured JSON with stable field names** instead of markup matched by CSS
-  selectors.
-- The browser supplies the gating header naturally, so **no API key is ever extracted or
-  hardcoded** — we use the site exactly as a visitor does.
+- Structured JSON with stable field names, instead of markup matched by CSS selectors.
+- The browser supplies the gating header itself, so the scraper never handles a credential.
 - A cosmetic redesign breaks CSS selectors but not the underlying payload shape.
-- It is substantially faster: no per-field DOM queries.
+- No per-field DOM queries.
 
-**Politeness.** Sequential navigation, a delay between pages, one browser context, and a
-descriptive user agent. This is public government data and crawling is permitted, but the scraper
-runs at human-ish pace regardless — there is no reason to be expensive to a public service.
+**Corpus scope.** ~300 schemes, chosen as a coherent slice (all central schemes plus a
+small number of states) rather than the first 300 the API happens to return. A coherent
+slice means demo and pilot profiles reliably hit real matches; an arbitrary slice produces
+a corpus where most profiles match nothing, which would undersell a matcher that works.
+
+**Politeness.** Sequential navigation, a delay between requests, a single browser context.
+This is public government data and crawling is permitted, but the scraper runs at human
+pace regardless — there is no reason to be expensive to a public service.
 
 ---
 

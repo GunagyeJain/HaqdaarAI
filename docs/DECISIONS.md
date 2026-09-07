@@ -77,9 +77,12 @@ bundle.
 structured JSON the application already receives.
 
 **Reasoning.** Stable JSON field names instead of CSS selectors; the browser supplies the gating
-header naturally so **no API key is extracted or hardcoded**; cosmetic redesigns don't break the
+header itself, so the scraper never handles a credential; cosmetic redesigns don't break the
 payload shape; and it avoids per-field DOM queries entirely. The alternatives are ruled out by the
 findings above rather than by preference.
+
+A key *was* subsequently discovered in the site's client bundle, and the decision not to use it is
+recorded separately in [ADR-009](#adr-009).
 
 ---
 
@@ -169,3 +172,37 @@ not merely multilingual voice.
 genuine non-English pilot testers and directly addressing the risk that the pilot pool skews toward
 technically comfortable CS students. Adding a sixth language must cost one `messages/*.json` file
 plus one locale entry; if it costs more, the i18n layer is wrong.
+
+---
+
+## ADR-009 — Do not replay the discovered API key
+
+**Date:** 2026-09-07 · **Status:** Accepted · **Refines:** [ADR-003](#adr-003)
+
+**Context.** Reconnaissance established that `api.myscheme.gov.in` rejects anonymous requests
+(401) and rejects same-origin `fetch()` from inside the site's own page (403). The site
+authenticates its own calls with an `x-api-key` header whose value is a public constant compiled
+into the client JavaScript bundle. That value is trivially readable, and the scraper could harvest
+it at runtime from the app's own outbound request — no hardcoding, surviving key rotation — making
+the scrape roughly twenty times faster and putting the full 4,772-scheme corpus in reach.
+
+**Decision.** We do not read or replay the key. The scraper navigates scheme pages and intercepts
+the responses the browser receives on its own.
+
+**Reasoning.**
+- `robots.txt` sanctions *crawling*. It does not speak to programmatic use of an undocumented
+  internal API, and the 401/403 responses are a reasonably clear signal that direct access is not
+  invited. Browsing the site is unambiguously within what has been permitted; replaying an
+  internal credential is not obviously within it.
+- The speed is not needed. At a ~300-scheme target, navigation costs about twenty minutes in a
+  scheduled job that runs at most daily. We would be trading a clear ethical position for time
+  nobody is waiting on.
+- Robustness runs the same direction: the browser handles the key, so key rotation, header
+  changes, and added anti-abuse checks are the site's problem rather than ours.
+
+**Trade-offs accepted.** A materially slower scrape and a practical ceiling well below the full
+corpus. Both are acceptable against a 150+ requirement and a 300 target.
+
+**Note for the report.** This is worth stating explicitly rather than omitting: the constraint was
+identified, the faster path was available, and the slower one was chosen deliberately. That is a
+more honest engineering account than a scraper that simply never mentions the key.

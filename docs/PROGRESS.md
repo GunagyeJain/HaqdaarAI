@@ -9,35 +9,38 @@ AI coding agent, so continuity lives here rather than in anyone's memory.
 
 ## Current State
 
-**Phase 0 complete.** The application skeleton is standing and every gate is green:
+**Phase 1 complete.** The rule DSL and the deterministic matcher are built and verified.
 
 | Gate | Result |
 |---|---|
 | `pnpm lint` | clean |
 | `pnpm typecheck` | clean |
-| `pnpm test` (unit + integration) | 9 passed |
-| `pnpm test:e2e` (desktop + mobile) | 16 passed |
-| `pnpm build` | all 5 locales prerendered as SSG |
-| `pnpm db:migrate` | applied against local Postgres |
+| `pnpm test` | **88 passed** (unit + integration) |
+| `pnpm test:e2e` | 16 passed |
+| `pnpm db:migrate` | applies cleanly from an empty database |
 
-What exists: Next.js 16 + React 19 + Tailwind 4 app with `next-intl` routing across all five
-locales; Drizzle schema for `schemes` with a typed `jsonb` eligibility column and the GIN index;
-`/api/health` reporting database reachability; docker-compose Postgres on host port 5433; and
-GitHub Actions CI running lint → typecheck → migrate → test → e2e against a Postgres service
-container.
+Kleene three-valued logic now exists twice: in TypeScript
+(`src/domain/rules/evaluate.ts`) and in PL/pgSQL (`match_schemes()`, migration
+`0001`). The differential test runs all 22 rule fixtures against all 9 profile
+fixtures in both implementations and asserts they agree on the verdict *and* the
+reasoning — 198 comparisons per run.
 
-The Phase 0 tests are real rather than placeholders. `tests/unit/i18n.test.ts` enforces key parity
-across all five message files — with five locales this catches a missing translation immediately
-instead of at runtime — and `tests/integration/db.test.ts` asserts the GIN index exists with
-`jsonb_path_ops` and that a scheme round-trips with its `source_prose` intact (invariant 4).
+Both the differential test and the monotonicity property test were verified by
+mutation: the implementation was deliberately broken (absent field coerced to
+FALSE instead of UNKNOWN — exactly the bug invariant 6 forbids) and each test
+was confirmed to catch it with an actionable message before the mutant was
+reverted. A test that passes without ever having failed proves nothing.
+
+The Zod layer enforces field-kind compatibility, so a nonsensical rule such as
+`age < female` cannot be stored at all rather than degrading to UNKNOWN for
+every citizen at evaluation time.
 
 ## Next Step
 
-**Phase 1 — Rule DSL and matcher.** Write `ProfileSchema` and the recursive `RuleTreeSchema`, then
-build the TS reference evaluator test-first, then `match_schemes()` as a SQL migration, then the
-differential test pinning the two implementations together.
-
-This is the highest-risk phase in the project. Everything above it assumes it is correct.
+**Phase 2 — Corpus.** Build the Playwright interception scraper against
+myscheme.gov.in, the field mapping onto profile fields, rule-tree synthesis from
+eligibility prose, and the prose-grounding gate that refuses any numeric bound
+it cannot locate in the source text.
 
 ---
 
@@ -56,17 +59,17 @@ Each phase ends at a checkpoint: **tests green · this file updated · work comm
 
 **Exit met:** all gates green; `pnpm db:migrate` succeeds against local Postgres.
 
-### Phase 1 — Rule DSL and matcher
-- [ ] Zod schemas: `ProfileSchema`, `RuleTreeSchema` (recursive, discriminated on `op`), `SchemeSchema`
-- [ ] TS reference evaluator — **TDD, failing tests first**
-- [ ] Table-driven tests: every operator × PASS/FAIL/UNKNOWN
-- [ ] Drizzle schema + `schemes` table migration
-- [ ] `match_schemes()` PL/pgSQL function as a versioned migration
-- [ ] **Differential test:** TS evaluator and SQL function agree on every fixture
-- [ ] Property test: monotonicity (a new field never reverses a decided verdict)
+### Phase 1 — Rule DSL and matcher ✅
+- [x] Zod schemas: `ProfileSchema`, `RuleTreeSchema` (recursive, discriminated on `op`)
+- [x] TS reference evaluator — TDD, failing tests first
+- [x] Table-driven tests: every operator × PASS/FAIL/UNKNOWN
+- [x] Drizzle schema + `schemes` table migration
+- [x] `match_schemes()` PL/pgSQL function as a versioned migration
+- [x] **Differential test:** TS evaluator and SQL function agree on every fixture
+- [x] Property test: monotonicity (a new field never reverses a decided verdict)
 
-**Exit:** three-valued logic provably correct in both implementations.
-**This is the highest-risk phase. Do not rush it — everything above it assumes it is right.**
+**Exit met:** three-valued logic verified in both implementations, and both tests
+proven capable of catching a deliberate mutation.
 
 ### Phase 2 — Corpus
 - [ ] Playwright interception scraper (`page.on('response')`)

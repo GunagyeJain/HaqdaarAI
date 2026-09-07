@@ -21,6 +21,16 @@ export interface GoldenCase {
   expected: Profile;
   /** Why this case exists, when it is not obvious. */
   note?: string;
+  /**
+   * True when grounding structurally cannot catch this case.
+   *
+   * Third-party transcripts are the only such class: the values really are in
+   * the transcript, just about somebody else, and "whose fact is this" is a
+   * question about discourse rather than token presence. These are defended at
+   * the extraction-prompt layer and by invariant 3, not by grounding — see
+   * docs/DECISIONS.md ADR-012.
+   */
+  beyondGrounding?: true;
 }
 
 export const goldenSet: GoldenCase[] = [
@@ -224,12 +234,32 @@ export const goldenSet: GoldenCase[] = [
     transcript: 'नमस्ते, क्या आप मुझे सुन सकते हैं?',
     expected: {},
   },
+  // Asking on behalf of a relative is a common, realistic way to use a tool
+  // like this — and the live model failed all of these before the system prompt
+  // was told to record only the speaker's own facts. Grounding cannot catch
+  // them: the ages and words really are in the transcript, just about somebody
+  // else. See docs/DECISIONS.md ADR-012.
   {
     id: 'empty-third-party',
+    beyondGrounding: true,
     locale: 'en',
     transcript: 'my neighbour is a 60 year old widow, does she qualify for anything?',
     expected: {},
-    note: 'Facts about somebody else are not the applicant profile. This is the subtlest trap in the set.',
+    note: 'Facts about somebody else are not the applicant profile. The subtlest trap in the set.',
+  },
+  {
+    id: 'empty-third-party-father',
+    beyondGrounding: true,
+    locale: 'en',
+    transcript: 'my father is 70 and disabled, what can he get?',
+    expected: {},
+  },
+  {
+    id: 'empty-third-party-sister',
+    beyondGrounding: true,
+    locale: 'en',
+    transcript: 'I am asking for my sister, she is 25 and unmarried',
+    expected: {},
   },
 
   // ── Sensitive fields must never be inferred ────────────────────────────────

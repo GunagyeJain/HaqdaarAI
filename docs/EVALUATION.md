@@ -10,7 +10,7 @@ Proposal §6 defines success as five measurable metrics. This document converts 
 | # | Metric | Target | Measured (2026-09-07) | Gate |
 |---|---|---|---|---|
 | 1 | Response latency | median ≤ 2s | **338ms** typed (p95 758ms) · voice unmeasured | `pnpm test:e2e` |
-| 2 | Extraction accuracy | **0%** hallucinated | **0** invented across 38 transcripts (adversarial) | `pnpm test:eval` |
+| 2 | Extraction accuracy | **0%** hallucinated | **0** adversarial · live run found 3, fixed, see [ADR-012](DECISIONS.md#adr-012) | `pnpm test:eval` |
 | 3 | Matching speed | < 100ms | **52.9ms** server over 483 schemes | `pnpm test` |
 | 4 | Corpus coverage | ≥ 150 schemes | **483**, 98% with a modelled clause | `pnpm test` |
 | 5 | Reliability | graceful degradation | all fallbacks exercised with no keys | `pnpm test:e2e` |
@@ -105,6 +105,25 @@ containing none of them is exhibiting exactly the failure mode this project exis
 §6.2 specifies "execution time for the SQL matching function", so the gate asserts on server
 execution. Reporting only the round-trip would penalise or flatter the metric depending on the
 network; reporting only server time would hide what the API tier actually waits for.
+
+**Live model, measured 2026-09-08** (`openai/gpt-oss-20b`, 41 transcripts):
+
+| Run | Invented | Recall |
+|---|---|---|
+| First | **3** — all from one third-party transcript | 41/51 (80%) |
+| After the [ADR-012](DECISIONS.md#adr-012) prompt fix | **0** | 46/51 (90%) |
+
+Recall improved alongside the fix rather than being traded against it. The
+adversarial half held at 0 throughout, across the 37 transcripts grounding can
+decide; the 3 third-party cases are carved out explicitly and pinned by their
+own test, because grounding structurally cannot settle whose fact a value is.
+
+**Quota note.** The free tier allows 200,000 tokens/day and each extraction
+costs roughly 1,600, so a few full runs exhaust it. When calls are rate-limited
+the suite reports **inconclusive** and skips rather than passing — an incomplete
+run reported as green would look like evidence and would not be.
+
+---
 
 **Measured (2026-09-07, 300 schemes, local Docker Postgres):**
 

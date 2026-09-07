@@ -284,3 +284,43 @@ it was written for, while a genuinely absent provider was retried pointlessly.
 
 **Verified against live credentials on 2026-09-08.** None of this was reachable without them; the
 whole voice path would have failed in the pilot.
+
+---
+
+## ADR-012 — Extraction records only the speaker's own facts
+
+**Date:** 2026-09-08 · **Status:** Accepted · **Refines:** [ADR-004](#adr-004), [ADR-011](#adr-011)
+
+**Context.** The first live run of the golden set against real Groq inference reported **3
+hallucinated fields**, all from one transcript:
+
+> *"my neighbour is a 60 year old widow, does she qualify for anything?"*
+
+The model returned `age: 60`, `gender: female`, `maritalStatus: widowed` — the neighbour's
+details, attributed to the applicant. **Grounding passed all three**, and correctly by its own
+definition: "60" and "widow" genuinely appear in the transcript.
+
+**This is the attribution limitation in its serious form.** It had been documented as a
+number landing on the wrong field. It is worse than that: an entire other person's profile can be
+applied to the citizen, and every downstream verdict is then about somebody else.
+
+It is not an exotic edge case either. Asking on behalf of a parent, spouse or neighbour is a
+normal way to use a tool like this — arguably more common among the people it targets, who may be
+helping a less literate or less mobile relative.
+
+**Decision.** The extraction system prompt now instructs the model to record only facts about the
+speaker, and to return nothing when they describe someone else. Three third-party transcripts are
+permanent golden-set fixtures.
+
+**Reasoning.** Grounding cannot solve this. It checks that a value was *said*, and these values
+were said — the defect is *whose* they are, which is a question about discourse structure, not
+about token presence. Fixing it at the extraction layer is the only place the information exists.
+
+**This is a mitigation, not a proof.** A prompt instruction is weaker than a structural guarantee,
+which is why the fixtures are permanent: the golden set now fails loudly if a model change
+regresses it. The remaining barrier is invariant 3 — the citizen sees these values in editable
+boxes and can clear them — and the pilot should watch specifically for whether people notice.
+
+**Method note.** This was found because the eval runs against the live model, not only against the
+adversarial stub. The adversarial half tests our defence and passed throughout; only real inference
+produced this particular failure. Both halves are needed, and neither substitutes for the other.

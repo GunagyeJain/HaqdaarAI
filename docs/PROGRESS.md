@@ -23,7 +23,7 @@ real 483-scheme corpus scraped from myscheme.gov.in.
 | Metric (proposal §6) | Target | Measured |
 |---|---|---|
 | Response latency | median ≤2s | **338ms** typed, p95 758ms |
-| Extraction accuracy | 0% hallucinated | **0** across 38 transcripts (adversarial) |
+| Extraction accuracy | 0% hallucinated | **0** adversarial · **0** live, recall 90% |
 | Matching speed | <100ms | **52.9ms** server-side, 483 schemes |
 | Corpus coverage | ≥150 schemes | **483**, 98% with a modelled clause |
 | Reliability | graceful degradation | every fallback exercised |
@@ -59,17 +59,22 @@ Then **Phase 7 — pilot** ([EVALUATION.md](EVALUATION.md) has the protocol).
    wrong. This is human review time, not engineering time.
 2. **Verify the scheduled scrape fires once.** The pipeline document treats an
    unverified re-scrape as a deployment blocker, and it is right.
-3. **A full live extraction eval run.** `pnpm test:eval` with `GROQ_API_KEY` set
-   takes ~9 minutes (paced to the free tier's 8000 TPM). The adversarial half
-   runs in CI already; the live half needs a deliberate run and its numbers
-   recorded in EVALUATION.md.
+3. **Re-run the live extraction eval when quota resets.** Done once on
+   2026-09-08 (0 invented, 90% recall) but the free tier's 200k tokens/day was
+   then exhausted. The suite now reports **inconclusive** rather than passing
+   when rate-limited. Worth one clean confirming run before the pilot.
 
 ### Known limitations, recorded rather than hidden
 
-- **Grounding checks presence, not attribution.** A transcript containing
-  "60 percent disability" will ground an extracted `age` of 60. Pinned by a test.
-  Invariant 3 — the citizen confirming values in editable boxes — is the barrier
-  that catches this in practice.
+- **Grounding checks presence, not attribution**, and the serious form of this
+  is third-party speech. "my father is 70 and disabled" grounds `isDisabled`
+  because the word is genuinely there — the defect is *whose* fact it is. The
+  live model failed all three such transcripts before the extraction prompt was
+  told to record only the speaker's own facts ([ADR-012](DECISIONS.md#adr-012)).
+  They are permanent golden-set fixtures and are carved out of the adversarial
+  assertion by an explicit `beyondGrounding` flag, with their own test asserting
+  the gap. A prompt is a mitigation, not a guarantee; **the pilot should watch
+  whether people notice and clear these values.**
 - **PASS verdicts are rare and that is correct.** ~1,100 clauses across the
   corpus are `WILDCARD`, because the prose states criteria we deliberately refuse
   to model rather than guess at. A wildcard is UNKNOWN forever, so most schemes

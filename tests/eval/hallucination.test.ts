@@ -75,23 +75,59 @@ describe('adversarial: the gate holds against a provider that invents everything
     expect(empty.length).toBeGreaterThanOrEqual(6);
   });
 
-  for (const testCase of goldenSet) {
+  for (const testCase of goldenSet.filter((c) => !c.beyondGrounding)) {
     it(`invents nothing for ${testCase.id}`, async () => {
       const invented = await hallucinatedFields(adversarial, testCase);
       expect(invented, testCase.note ?? testCase.transcript).toEqual([]);
     });
   }
 
-  it('reports a 0% hallucination rate across the whole set', async () => {
+  it('reports a 0% hallucination rate across everything grounding can decide', async () => {
     let inventedTotal = 0;
-    for (const testCase of goldenSet) {
+    for (const testCase of goldenSet.filter((c) => !c.beyondGrounding)) {
       inventedTotal += (await hallucinatedFields(adversarial, testCase)).length;
     }
 
+    const scope = goldenSet.filter((c) => !c.beyondGrounding).length;
     console.log(
-      `    adversarial provider: ${inventedTotal} invented field(s) survived across ${goldenSet.length} transcripts`,
+      `    adversarial provider: ${inventedTotal} invented field(s) survived across ${scope} transcripts`,
     );
     expect(inventedTotal).toBe(0);
+  });
+});
+
+/**
+ * THE ONE CLASS GROUNDING CANNOT DECIDE, asserted rather than assumed.
+ *
+ * "my father is 70 and disabled" contains the word "disabled", so grounding
+ * admits an extracted isDisabled — correctly by its own definition. Whose fact
+ * it is cannot be settled by checking whether the token appears.
+ *
+ * These cases are excluded from the adversarial assertion above and pinned here
+ * instead, so the carve-out is visible rather than a quietly narrowed gate. If
+ * grounding ever does learn to catch them, this test fails and says so.
+ *
+ * The live model handles them: the extraction prompt is told to record only the
+ * speaker's own facts (ADR-012). Invariant 3 is the barrier behind that.
+ */
+describe('third-party attribution is beyond grounding, by construction', () => {
+  const thirdParty = goldenSet.filter((c) => c.beyondGrounding);
+
+  it('covers the realistic ways someone asks on behalf of another person', () => {
+    expect(thirdParty.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('leaks under an adversarial provider, which is why the prompt must hold', async () => {
+    let leaked = 0;
+    for (const testCase of thirdParty) {
+      leaked += (await hallucinatedFields(adversarial, testCase)).length;
+    }
+
+    console.log(
+      `    third-party cases: ${leaked} field(s) grounding cannot reject ` +
+        `across ${thirdParty.length} transcripts (see ADR-012)`,
+    );
+    expect(leaked).toBeGreaterThan(0);
   });
 });
 
@@ -128,10 +164,11 @@ describe('known limitation: grounding checks presence, not attribution', () => {
 const hasLiveKey = Boolean(process.env.GROQ_API_KEY);
 
 describe.skipIf(!hasLiveKey)('live: the configured model against the golden set', () => {
-  it('hallucinates no fields, and its recall is reported', async () => {
+  it('hallucinates no fields, and its recall is reported', async (context) => {
     let invented = 0;
     let recalled = 0;
     let expectedTotal = 0;
+    let rateLimited = 0;
     const failures: string[] = [];
 
     for (const testCase of goldenSet) {
@@ -144,6 +181,7 @@ describe.skipIf(!hasLiveKey)('live: the configured model against the golden set'
       const result = await extractProfile(groqLlm, testCase.transcript, testCase.locale);
       expectedTotal += fieldsOf(testCase.expected).length;
       if (!result.ok) {
+        if (/rate.?limit|429/i.test(result.error)) rateLimited += 1;
         failures.push(`${testCase.id}: ${result.error.slice(0, 90)}`);
         continue;
       }

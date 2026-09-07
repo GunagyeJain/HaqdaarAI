@@ -13,8 +13,21 @@ const int = (name: string, fallback: number): number => {
 export const config = {
   origin: process.env.SCRAPE_TARGET_URL ?? 'https://www.myscheme.gov.in',
 
-  /** How many schemes to collect. See docs/SCRAPER.md on choosing a coherent slice. */
+  /** How many schemes to collect per keyword pass. */
   targetCount: int('SCRAPE_TARGET_COUNT', 300),
+
+  /**
+   * Search terms driving the corpus, comma-separated. An empty term means the
+   * unfiltered listing. Passes are unioned by slug, so overlap costs nothing.
+   *
+   * The default builds a corpus that is both broad (an unfiltered pass, which
+   * demonstrates the fragmentation problem) and coherent for the pilot region
+   * (Punjab and Delhi), so pilot profiles hit real matches instead of failing
+   * on geography alone. See docs/SCRAPER.md.
+   */
+  keywords: (process.env.SCRAPE_KEYWORDS ?? ',Punjab,Delhi,Chandigarh')
+    .split(',')
+    .map((term) => term.trim()),
 
   /** The scraper exits non-zero below this. Silent under-counting is the real danger. */
   minSchemes: int('SCRAPE_MIN_SCHEMES', 150),

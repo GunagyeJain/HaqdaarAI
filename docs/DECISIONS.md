@@ -206,3 +206,40 @@ corpus. Both are acceptable against a 150+ requirement and a 300 target.
 **Note for the report.** This is worth stating explicitly rather than omitting: the constraint was
 identified, the faster path was available, and the slower one was chosen deliberately. That is a
 more honest engineering account than a scraper that simply never mentions the key.
+
+---
+
+## ADR-010 — Fix the planner's row estimate rather than disable JIT
+
+**Date:** 2026-09-07 · **Status:** Accepted · **Refines:** [ADR-007](#adr-007)
+
+**Context.** Measured against the first real 300-scheme corpus, `match_schemes()` took ~220ms
+median against the <100ms target in proposal §6.2. `EXPLAIN ANALYZE` — used per ADR-007 rather
+than assuming — showed the cause was not the matching logic:
+
+```
+Function Scan on haqdaar_leaves  (cost=0.25..260.25 rows=1000)  (actual rows=6)
+Nested Loop Left Join            (rows=298000)                  (actual rows=1788)
+JIT: Timing: ... Emission 34.9 ms, Total 41.2 ms
+```
+
+A set-returning function reports 1000 estimated rows by default. Across the corpus that produced a
+total cost around 179,000 — over the default `jit_above_cost` of 100,000 — so Postgres spent more
+time JIT-compiling the query than executing it.
+
+**Decision.** Declare `ROWS 6` on `haqdaar_leaves` (real schemes average about six leaf clauses),
+and group by scheme id alone instead of by `(id, haqdaar_eval_node(...))`, which had forced a sort
+on a computed plpgsql result.
+
+**Reasoning.** `SET jit = off` would also have made the number go away, and would have been the
+wrong fix: it hides a bad estimate rather than correcting it, and a wrong estimate produces bad
+plans in other ways as the corpus grows. Correcting the estimate leaves the planner free to choose
+JIT if the corpus ever genuinely warrants it.
+
+**Result.** 220ms → **68.7ms** server-side execution over 300 schemes.
+
+**A correction to how this was measured.** The first measurements timed the client round-trip,
+which includes transport and deserialising 300 rows. §6.2 specifies "execution time for the SQL
+matching function", which is server-side. The benchmark now reports both — server execution and
+round-trip — and asserts on the former, because conflating them either flatters or penalises the
+metric depending on which way the network happens to fall.

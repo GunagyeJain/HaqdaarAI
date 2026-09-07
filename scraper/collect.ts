@@ -32,7 +32,17 @@ export interface CollectResult {
   pagesVisited: number;
 }
 
-export async function collectSlugs(page: Page, target: number): Promise<CollectResult> {
+/**
+ * @param keyword Optional search term, typed into the site's own search box.
+ *   The facet panel is not practically drivable, but keyword search is a
+ *   visible control and is enough to build a coherent corpus — see
+ *   docs/SCRAPER.md on corpus scope.
+ */
+export async function collectSlugs(
+  page: Page,
+  target: number,
+  keyword = '',
+): Promise<CollectResult> {
   const slugs = new Set<string>();
   let reportedTotal: number | null = null;
   let pagesVisited = 0;
@@ -50,12 +60,34 @@ export async function collectSlugs(page: Page, target: number): Promise<CollectR
   let payload = (await (await firstResponse).json()) as SearchPayload;
   pagesVisited += 1;
 
+  if (keyword) {
+    const searched = page.waitForResponse(
+      (res) =>
+        res.url().includes(SEARCH_RESPONSE) &&
+        res.url().includes(`keyword=${encodeURIComponent(keyword)}`) &&
+        res.ok(),
+      { timeout: config.navigationTimeoutMs },
+    );
+
+    const box = page.getByPlaceholder('Search').first();
+    await box.fill(keyword);
+    await box.press('Enter');
+
+    payload = (await (await searched).json()) as SearchPayload;
+    pagesVisited += 1;
+  }
+
   const total = payload.data?.hits?.page?.total;
   if (typeof total === 'number') reportedTotal = total;
 
   const firstBatch = slugsFrom(payload);
   if (firstBatch.length === 0) {
-    // A search page that yields nothing is a shape change, not an empty corpus.
+    if (keyword) {
+      // A keyword with no matches is a legitimate empty result, not a failure.
+      console.warn(`  keyword "${keyword}" matched no schemes`);
+      return { slugs: [], reportedTotal, pagesVisited };
+    }
+    // An unfiltered search that yields nothing is a shape change, not an empty corpus.
     throw new Error('search returned zero schemes on the first page — payload shape may have changed');
   }
   firstBatch.forEach((slug) => slugs.add(slug));

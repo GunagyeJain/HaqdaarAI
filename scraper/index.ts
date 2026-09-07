@@ -85,10 +85,31 @@ async function main(): Promise<void> {
 
   try {
     console.log('Stage 1: collecting slugs from the search UI');
-    const collected = await collectSlugs(page, config.targetCount);
+
+    // One pass per keyword, unioned by slug. The unfiltered pass gives breadth;
+    // the regional passes make sure a pilot tester in Punjab actually sees
+    // matches rather than failing every scheme on geography.
+    const allSlugs = new Set<string>();
+    let pagesVisited = 0;
+
+    for (const keyword of config.keywords) {
+      const label = keyword || '(unfiltered)';
+      const pass = await collectSlugs(page, config.targetCount, keyword);
+      pagesVisited += pass.pagesVisited;
+
+      const before = allSlugs.size;
+      pass.slugs.forEach((slug) => allSlugs.add(slug));
+      console.log(`  ${label}: ${pass.slugs.length} slugs (+${allSlugs.size - before} new)`);
+
+      if (summary.reportedTotal === null && !keyword) {
+        summary.reportedTotal = pass.reportedTotal;
+      }
+      await sleep(config.delayMs);
+    }
+
+    const collected = { slugs: [...allSlugs] };
     summary.slugsCollected = collected.slugs.length;
-    summary.reportedTotal = collected.reportedTotal;
-    console.log(`  ${collected.slugs.length} slugs over ${collected.pagesVisited} pages\n`);
+    console.log(`  ${collected.slugs.length} unique slugs over ${pagesVisited} pages\n`);
 
     console.log('Stage 2: fetching and normalizing each scheme');
     let consecutiveFailures = 0;

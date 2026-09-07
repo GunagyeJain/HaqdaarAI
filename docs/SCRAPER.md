@@ -81,10 +81,20 @@ target. Speed we do not need is not worth the ambiguity.
 - A cosmetic redesign breaks CSS selectors but not the underlying payload shape.
 - No per-field DOM queries.
 
-**Corpus scope.** ~300 schemes, chosen as a coherent slice (all central schemes plus a
-small number of states) rather than the first 300 the API happens to return. A coherent
-slice means demo and pilot profiles reliably hit real matches; an arbitrary slice produces
-a corpus where most profiles match nothing, which would undersell a matcher that works.
+**Corpus scope — and how it is actually achieved.** myscheme's facet panel (State, Level)
+is rendered lazily and was not practically drivable with Playwright. Its search box is, and
+`keyword=Punjab` returns 38 Punjab schemes, so the scraper builds its corpus from **one pass
+per keyword, unioned by slug** (`SCRAPE_KEYWORDS`).
+
+The default is an unfiltered pass plus regional passes for Punjab, Delhi, Chandigarh and
+Haryana. That gives a corpus which is both broad — demonstrating the fragmentation problem
+the project exists to solve — and coherent for the pilot region.
+
+This matters more than it sounds. A first attempt took simply "the first 300", which spread
+across 33 states with Punjab barely represented; a real Punjab profile then returned **0 PASS,
+286 FAIL, 14 UNKNOWN**. Every verdict was correct, and the result was useless — a pilot tester
+in Patiala would have seen nothing, defeating the reason Punjabi is a supported locale
+([ADR-008](DECISIONS.md#adr-008)). A corpus can be entirely valid and still be the wrong corpus.
 
 **Politeness.** Sequential navigation, a delay between requests, a single browser context.
 This is public government data and crawling is permitted, but the scraper runs at human

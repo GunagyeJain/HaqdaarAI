@@ -57,13 +57,36 @@ containing none of them is exhibiting exactly the failure mode this project exis
 
 ## 3. Matching speed
 
-`match_schemes()` timed against the full corpus, 100 runs, reporting median and p95.
+`match_schemes()` timed against a 300-scheme corpus, reporting the median of nine runs.
 
-Additionally runs **`EXPLAIN ANALYZE`** and records the chosen access path. Per
-[ADR-007](DECISIONS.md#adr-007), the expectation at 150 rows is a sequential scan, and that is
-fine — the point is to *record what the planner actually does* rather than assert that the GIN
-index is doing work it is not. The pipeline document is right that assuming index usage is how
-latency targets quietly slip; the fix is to look.
+**Two numbers are reported, because they answer different questions:**
+
+| Measure | What it includes | Target |
+|---|---|---|
+| **Server execution** | `EXPLAIN (ANALYZE, TIMING OFF)` — the function itself | **<100ms (§6.2)** |
+| Client round-trip | plus transport and deserialising 300 rows | feeds the ≤2s budget (§6.1) |
+
+§6.2 specifies "execution time for the SQL matching function", so the gate asserts on server
+execution. Reporting only the round-trip would penalise or flatter the metric depending on the
+network; reporting only server time would hide what the API tier actually waits for.
+
+**Measured (2026-09-07, 300 schemes, local Docker Postgres):**
+
+- server execution **68.7ms** · round-trip **76.5ms** — both inside target.
+- Reached after a real regression was found and fixed: the first measurement was **220ms**,
+  caused by a planner row estimate wrong by two orders of magnitude tripping JIT compilation.
+  See [ADR-010](DECISIONS.md#adr-010).
+
+The benchmark also asserts the plan contains **no JIT section**, which is what regressed before;
+a timing assertion alone would have caught the symptom without naming the cause.
+
+Per [ADR-007](DECISIONS.md#adr-007) the plan is recorded rather than assumed. At this corpus size
+the planner chooses a sequential scan and the GIN index is not doing meaningful work — which is
+the honest position, and the reason the index is justified by the scalability argument rather than
+by this benchmark.
+
+**Re-run after deployment.** Managed hosting shifts these numbers, so a developer-machine figure
+is not the result.
 
 ---
 

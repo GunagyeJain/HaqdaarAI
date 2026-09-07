@@ -15,6 +15,20 @@
       "when": 1788771845301,
       "tag": "0001_match_schemes",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1788775161510,
+      "tag": "0002_matcher_performance",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1788775229994,
+      "tag": "0003_eval_leaf_sql",
+      "breakpoints": true
     }
   ]
 }

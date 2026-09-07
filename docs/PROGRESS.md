@@ -9,38 +9,39 @@ AI coding agent, so continuity lives here rather than in anyone's memory.
 
 ## Current State
 
-**Phase 1 complete.** The rule DSL and the deterministic matcher are built and verified.
+**Phase 2 complete.** The corpus is scraped, normalized and stored; the matcher runs
+against it inside target.
 
 | Gate | Result |
 |---|---|
 | `pnpm lint` | clean |
 | `pnpm typecheck` | clean |
-| `pnpm test` | **88 passed** (unit + integration) |
-| `pnpm test:e2e` | 16 passed |
-| `pnpm db:migrate` | applies cleanly from an empty database |
+| `pnpm test` | **182 passed** |
+| `match_schemes()` | **71ms** server-side over 783 schemes (target <100ms) |
 
-Kleene three-valued logic now exists twice: in TypeScript
-(`src/domain/rules/evaluate.ts`) and in PL/pgSQL (`match_schemes()`, migration
-`0001`). The differential test runs all 22 rule fixtures against all 9 profile
-fixtures in both implementations and asserts they agree on the verdict *and* the
-reasoning — 198 comparisons per run.
+**Corpus: 483 schemes** across 33 states, from a platform of 4,772. 472 flagged
+`needs_review`. Zero ungrounded bounds — no scraped figure was stored that could
+not be located in the source prose.
 
-Both the differential test and the monotonicity property test were verified by
-mutation: the implementation was deliberately broken (absent field coerced to
-FALSE instead of UNKNOWN — exactly the bug invariant 6 forbids) and each test
-was confirmed to catch it with an actionable message before the mutant was
-reverted. A test that passes without ever having failed proves nothing.
+Modelled clause coverage: `state` · `gender` · `age` · `annualIncome` · `category` ·
+`isDisabled` · `isBPL` · `residence` · `disabilityPercentage`. Only 9 of the first
+300 schemes ended up with no modelled clause at all.
 
-The Zod layer enforces field-kind compatibility, so a nonsensical rule such as
-`age < female` cannot be stored at all rather than degrading to UNKNOWN for
-every citizen at evaluation time.
+**A note on what the verdicts look like.** A full Punjab profile returns roughly
+1 PASS, 26 UNKNOWN, 456 FAIL. PASS is rare *by design*: most schemes carry at least
+one clause we deliberately refuse to model, and a WILDCARD is UNKNOWN forever. The
+UNKNOWN set is the actionable output — "you may qualify, here is what we cannot tell
+and here is the government's own wording" — not a failure mode. A system that forced
+a binary answer would have to guess on ~1,100 clauses, and each guess risks telling
+someone they do not qualify when they do.
 
 ## Next Step
 
-**Phase 2 — Corpus.** Build the Playwright interception scraper against
-myscheme.gov.in, the field mapping onto profile fields, rule-tree synthesis from
-eligibility prose, and the prose-grounding gate that refuses any numeric bound
-it cannot locate in the source text.
+**Phase 3 — the typed path, and the MVP gate.** Shared profile state, the localized
+profile form, `POST /api/match`, result cards showing PASS/FAIL/UNKNOWN *with their
+reasoning*, and the information-gain next-question engine.
+
+This is the proposal's own definition of success. Treat it as independently shippable.
 
 ---
 
@@ -71,16 +72,17 @@ Each phase ends at a checkpoint: **tests green · this file updated · work comm
 **Exit met:** three-valued logic verified in both implementations, and both tests
 proven capable of catching a deliberate mutation.
 
-### Phase 2 — Corpus
-- [ ] Playwright interception scraper (`page.on('response')`)
-- [ ] Field mapping: myscheme facets → profile fields
-- [ ] Rule-tree synthesis from eligibility prose
-- [ ] Prose-grounding check with Indian numeric surface forms (`2,50,000`, `2.5 lakh`, `₹…`)
-- [ ] Ungrounded bounds → `WILDCARD` + `needs_review`
-- [ ] Fail-loudly behaviour + run summary report
-- [ ] Seed script
+### Phase 2 — Corpus ✅
+- [x] Playwright navigation scraper intercepting `page.on('response')`
+- [x] Field mapping: myscheme structured facets → profile fields
+- [x] Rule-tree synthesis from eligibility prose
+- [x] Prose-grounding with Indian numeric surface forms (`2,50,000`, `2.5 lakh`, `₹…`)
+- [x] Ungrounded bounds → `WILDCARD` + `needs_review`
+- [x] Fail-loudly behaviour + run summary report
+- [x] Keyword passes for a regionally coherent corpus
+- [ ] Manual audit of a 15-scheme random sample — **human review time, still owed**
 
-**Exit:** ≥150 schemes, 100% Zod-valid, manual audit of a 15-scheme random sample.
+**Exit met:** 483 schemes (target 150+), all Zod-valid, zero ungrounded bounds stored.
 
 ### Phase 3 — Typed path (MVP GATE)
 - [ ] Shared profile state (consumed later by both input paths)

@@ -9,55 +9,50 @@ AI coding agent, so continuity lives here rather than in anyone's memory.
 
 ## Current State
 
-**Phase 4 complete.** Voice is layered on the working typed path, strictly
-additively, with every fallback tested rather than assumed.
+**Phase 5 complete.** Every §6 metric is now an executable number rather than a
+claim in prose.
 
-| Gate | Result |
-|---|---|
-| `pnpm lint` / `pnpm typecheck` | clean |
-| `pnpm test` | **230 passed** |
-| `pnpm test:e2e` | **44 passed** (desktop + mobile) |
+| Metric | Target | Measured |
+|---|---|---|
+| Response latency (§6.1) | median ≤2s | **338ms** typed, p95 758ms |
+| Extraction accuracy (§6.2) | 0% hallucinated | **0** across 38 transcripts |
+| Matching speed (§6.2) | <100ms | **52.9ms** over 483 schemes |
+| Corpus coverage (§6.2) | ≥150 schemes | **483**, 98% modelled |
+| Reliability (§6.2) | graceful degradation | every fallback exercised |
 
-What exists: provider contracts for STT/TTS/LLM selected by env var, Sarvam and
-Groq implementations, `MediaRecorder` capture with a browser-`SpeechRecognition`
-fallback, `POST /api/voice` and `POST /api/tts`, and the confirmation gate.
+Suites: **243 unit/integration · 43 eval · 48 e2e.**
 
-**The hallucination gate is structural, not a prompt.** Whatever the model
-returns passes two independent checks before it can reach an editable box:
-`ProfileSchema` (strict, so an invented *field* is a parse error) and grounding
-(so an invented *value* is discarded). A transcript saying "hello, testing
-testing" yields an empty profile even if the model returns three plausible
-fields. What was dropped is reported to the citizen rather than hidden.
+**The eval tests our defence, not the vendor's goodwill.** The adversarial half
+runs in CI on every push: a provider that fabricates all sixteen fields must not
+get a single value past grounding. Testing only the live model would make the
+gate hostage to a rate limit and would fail for reasons that are not our
+regression.
 
-**Invariant 3 is literal, not approximate.** Suggestions render through
-`ProfileFieldControl` — the same component the typed form uses — and nothing
-reaches the profile, let alone the matcher, until the citizen confirms.
+**The adversarial eval immediately earned itself.** It found that grounding
+matched two-letter state codes as *substrings* — `"ld"` is inside "old",
+"children" and "world"; `"as"` inside "as"; `"up"` inside "up". Five golden
+transcripts were grounding a state nobody had named, and a wrong state clause
+disqualifies a citizen from every scheme in the state they actually live in.
+Fixed by matching whole words for Latin terms and never accepting a bare code.
 
-**A design flaw the degradation test caught.** A missing API key was surfacing
-as "extraction failed" (502) rather than "provider unavailable" (503), which
-would have shown the citizen an error instead of falling back. `extractProfile`
-now propagates `ProviderUnavailableError` rather than swallowing it: a model
-returning bad JSON and a provider that does not exist are categorically
-different, and only one of them is worth a retry.
-
-**A note on model drift.** Groq deprecated `llama-3.1-8b-instant` and
-`llama-3.3-70b-versatile` in June 2026, so the proposal's "Llama 3" no longer
-exists. The default is now a current strict-mode-capable model, overridable by
-env — which is exactly why ADR-004 said to verify the model rather than assume it.
-
-**Not yet exercised against real providers.** No Sarvam or Groq key is
-configured, so the live paths are unverified. The API shapes were taken from
-current vendor documentation, and the degradation suite runs in precisely the
-unconfigured state. Real keys are needed before the pilot.
+**A benchmark whose subject changes is not a benchmark.** The matching-speed
+test had been seeding 300 synthetic schemes on top of whatever was already
+there, so the number depended on whether you had scraped. It now measures the
+real corpus when one exists and seeds only on an empty database — and says which
+it did.
 
 ## Next Step
 
-**Phase 5 — the evaluation harness.** The ~50-transcript golden set for the 0%
-hallucination gate, latency instrumentation for both modes, and CI gates on
-corpus coverage and matching speed.
+**Phase 6 — deployment.** Vercel plus Neon, migrations applied, the scheduled
+re-scrape workflow verified to fire once, and the accessibility pass. Then
+re-run every metric above against production, because managed hosting shifts
+them and a developer-machine number is not the result.
 
-Much of the machinery already exists — the grounding check is written and
-tested; Phase 5 is about turning each §6 metric into a CI-blocking number.
+**Two things are owed before the pilot**, both recorded rather than quietly
+dropped: verification against real Sarvam and Groq credentials (which also
+unblocks the voice latency metric), and the manual audit of a 15-scheme random
+sample against source prose — the only check that catches a rule that is
+well-formed, correctly grounded, and still wrong.
 
 ---
 
@@ -126,15 +121,19 @@ a complete journey in Punjabi, against the real corpus with no AI provider confi
 keys and proves the typed path is unaffected, capabilities are reported honestly,
 and every provider failure degrades with an attributable reason.
 
-### Phase 5 — Evaluation harness
-- [ ] ~50-transcript golden set incl. code-mixed and empty-transcript cases
-- [ ] Grounding assertion (0% hallucinated fields) — CI-blocking
-- [ ] Latency instrumentation, both modes, median + p95
-- [ ] `EXPLAIN ANALYZE` matcher benchmark
-- [ ] Degradation E2E spec
-- [ ] CI gates on corpus coverage and matching speed
+### Phase 5 — Evaluation harness ✅
+- [x] 38-transcript golden set: code-mixed, Indic script, disfluency,
+      self-correction, empty transcripts, and sensitive-field inference traps
+- [x] Grounding assertion (0% hallucinated fields) — CI-blocking, adversarial
+- [x] Latency measurement for the typed path, median + p95
+- [ ] Voice-path latency — **owed, needs provider credentials**
+- [x] `EXPLAIN ANALYZE` matcher benchmark, with a JIT-regression assertion
+- [x] Degradation E2E spec
+- [x] Corpus coverage gate, incl. source-prose presence (invariant 4)
+- [x] CI runs every gate on each push
 
-**Exit:** every §6 metric is an executable pass/fail check.
+**Exit met for every metric except voice latency**, which is blocked on credentials
+and is reported as unmeasured rather than approximated from the typed figure.
 
 ### Phase 6 — Design pass and deployment
 - [ ] Accessibility-first visual refinement — WCAG AA, large tap targets, high contrast

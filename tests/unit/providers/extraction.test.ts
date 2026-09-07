@@ -174,3 +174,52 @@ describe('distinguishing a bad response from an absent provider', () => {
     expect(calls).toBe(1);
   });
 });
+
+describe('grounding must match words, not substrings', () => {
+  // Found by the adversarial eval: two-letter state codes matched inside
+  // ordinary words. "ld" is in "old", "children" and "world"; "as" is in
+  // "as"; "up" is in "up". Every one of those would have grounded a state the
+  // citizen never mentioned — and a wrong state clause disqualifies them from
+  // every scheme in their actual state.
+  it.each([
+    ['I am 67 years old and retired', 'LD'],
+    ['I am married with two children', 'LD'],
+    ['I work as a farmer', 'AS'],
+    ['I gave up my job last year', 'UP'],
+    ['My brother helps me', 'BR'],
+  ])('does not ground a state code hidden inside a word: %s', async (transcript, code) => {
+    const result = await extractProfile(provider({ state: code }), transcript, 'en');
+    expect(result.ok && result.profile).toEqual({});
+  });
+
+  it('still grounds a state the citizen actually named', async () => {
+    const result = await extractProfile(
+      provider({ state: 'PB' }),
+      'I am from Punjab',
+      'en',
+    );
+    expect(result.ok && result.profile).toEqual({ state: 'PB' });
+  });
+
+  it('does not ground an occupation hidden inside a longer word', async () => {
+    // "job" inside "jobless" would otherwise ground `salaried` for someone who
+    // just said they have no work.
+    const result = await extractProfile(
+      provider({ occupation: 'salaried' }),
+      'I am jobless right now',
+      'en',
+    );
+    expect(result.ok && result.profile).toEqual({});
+  });
+
+  it('still grounds Indic terms, which are matched as substrings', async () => {
+    // Word boundaries are an ASCII notion; Devanagari and Gurmukhi terms are
+    // long and distinctive enough that substring matching is safe.
+    const result = await extractProfile(
+      provider({ occupation: 'farmer' }),
+      'ਮੈਂ ਪੰਜਾਬ ਦਾ ਕਿਸਾਨ ਹਾਂ',
+      'pa',
+    );
+    expect(result.ok && result.profile).toEqual({ occupation: 'farmer' });
+  });
+});

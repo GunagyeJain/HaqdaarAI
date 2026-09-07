@@ -57,6 +57,14 @@ jobs:
       - name: Unit and integration tests
         run: pnpm test
 
+      # Proposal §6.2, the 0% hallucination gate. The adversarial half runs
+      # here on every push: a provider that fabricates every field must not get
+      # a single value past the grounding check. The live-model half is skipped
+      # without GROQ_API_KEY, so CI tests our defence rather than a vendor's
+      # goodwill or a rate limit.
+      - name: Extraction hallucination gate
+        run: pnpm test:eval
+
       - name: Install Playwright browsers
         run: pnpm exec playwright install --with-deps chromium
 
@@ -71,6 +79,15 @@ jobs:
           path: playwright-report/
           retention-days: 7
 
-  # Phase 5 adds the metric gates here: corpus coverage (>=150 schemes),
-  # matching speed (<100ms), and the 0%-hallucination extraction eval.
-  # See docs/EVALUATION.md.
+  # Metric gates and where they live (docs/EVALUATION.md):
+  #
+  #   hallucination (§6.2)  `pnpm test:eval`   — every push, above
+  #   matching speed (§6.2)  integration suite — seeds a synthetic corpus on an
+  #                                              empty CI database
+  #   latency (§6.1)         e2e suite         — typed path over real HTTP
+  #   corpus coverage (§6.2) integration suite — skipped without a scraped
+  #                                              corpus; enforced by the scrape
+  #                                              workflow, which has one
+  #
+  # The voice path's latency needs provider credentials and is measured before
+  # the pilot, not here.

@@ -7,13 +7,20 @@ Proposal §6 defines success as five measurable metrics. This document converts 
 
 ## Metric summary
 
-| # | Metric | Target | Gate |
-|---|---|---|---|
-| 1 | Turn / response latency | median ≤ 2s, both modes | `pnpm test:latency` |
-| 2 | Extraction accuracy | **0%** hallucinated fields | `pnpm test:eval` (CI-blocking) |
-| 3 | Matching speed | < 100ms full corpus | `pnpm test:perf` (CI-blocking) |
-| 4 | Corpus coverage | ≥ 150 schemes, 100% Zod-valid | `pnpm test:corpus` (CI-blocking) |
-| 5 | Reliability | graceful degradation | `pnpm test:e2e` degradation spec |
+| # | Metric | Target | Measured (2026-09-07) | Gate |
+|---|---|---|---|---|
+| 1 | Response latency | median ≤ 2s | **338ms** typed (p95 758ms) · voice unmeasured | `pnpm test:e2e` |
+| 2 | Extraction accuracy | **0%** hallucinated | **0** invented across 38 transcripts (adversarial) | `pnpm test:eval` |
+| 3 | Matching speed | < 100ms | **52.9ms** server over 483 schemes | `pnpm test` |
+| 4 | Corpus coverage | ≥ 150 schemes | **483**, 98% with a modelled clause | `pnpm test` |
+| 5 | Reliability | graceful degradation | all fallbacks exercised with no keys | `pnpm test:e2e` |
+
+Every gate above runs in CI on each push, except corpus coverage, which skips on
+an empty database and is enforced by the scrape workflow that has one.
+
+**One metric is not yet met and is not being reported as if it were:** the voice
+path's latency needs Sarvam and Groq credentials. The typed figure above covers
+the typed path only.
 
 ---
 
@@ -39,6 +46,28 @@ The strongest claim in the proposal, and the one most in need of a harness.
 JSON. Deliberately includes hard cases: code-mixed Hindi/English, ambiguous numbers
 (*"do lakh"*, *"twenty-five thousand"*), speech disfluency, contradictory self-correction
 (*"I'm 40 — sorry, 42"*), and **transcripts that mention no profile fields at all**.
+
+**The suite runs in two modes, and the one that runs in CI is the important one.**
+
+*Adversarial (always):* a provider that returns every field populated regardless
+of what was said. The gate must reduce that to only what the transcript
+supports. This tests **our defence** — the part we control, and the part that
+must hold whichever model is configured and however it drifts. Result: **0
+invented fields across 38 transcripts.**
+
+*Live (only with `GROQ_API_KEY`):* the real model against the same set,
+reporting hallucination and recall.
+
+Testing the model alone would make the gate hostage to a vendor's behaviour and
+to a rate limit; testing the defence means CI fails when *we* regress.
+
+**A known limitation, recorded rather than left to be discovered.** Grounding
+verifies a value was *said*, not that it was said *about that field*. A
+transcript containing "60 percent disability" will ground an extracted `age` of
+60. This is why grounding is the second of three barriers rather than the only
+one — strict JSON-schema decoding precedes it, and the citizen confirming the
+value in an editable box follows it. There is a test pinning this behaviour so
+it would be noticed if it ever widened.
 
 Two assertions per fixture:
 

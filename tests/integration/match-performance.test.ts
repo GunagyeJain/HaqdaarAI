@@ -4,22 +4,22 @@ import { getDb, schema } from '@/db';
 import type { RuleNode } from '@/domain/rules/types';
 
 /**
- * Proposal §6.2: sub-100ms execution for the SQL matching function across the
- * full corpus.
+ * MATCHING SPEED (proposal §6.2): sub-100ms execution across the full corpus.
  *
- * Seeds its own corpus so the measurement is the same on a developer machine
- * and on an empty CI database. Reports the median of several runs — a single
- * timing on shared CI hardware is noise, not a measurement.
+ * "The full corpus" is taken literally: when a real corpus is present this
+ * measures that, and seeds a synthetic one only on an empty database so CI has
+ * something to measure. An earlier version seeded 300 rows unconditionally,
+ * which meant the number depended on whether you had scraped — a benchmark
+ * whose subject changes is not a benchmark.
  */
 
 const db = getDb();
 const SLUG_PREFIX = 'perftest-';
-const CORPUS_SIZE = 300;
+const SEED_SIZE = 300;
 const TARGET_MS = 100;
 
 const STATES = ['PB', 'HR', 'UP', 'MH', 'TN', 'KA', 'WB', 'GJ'];
 
-/** A rule tree shaped like the ones the scraper actually produces. */
 function syntheticRule(index: number): RuleNode {
   return {
     op: 'AND',
@@ -51,6 +51,9 @@ const profile = {
   isDisabled: false,
 };
 
+let corpusSize = 0;
+let seeded = false;
+
 /** Round-trip as the API tier experiences it: execution plus transport. */
 async function timeRoundTrip(): Promise<number> {
   const started = performance.now();
@@ -59,19 +62,16 @@ async function timeRoundTrip(): Promise<number> {
 }
 
 /**
- * Server-side execution time, which is what proposal §6.2 actually specifies:
- * "sub-100ms execution time for the SQL matching function".
- *
- * TIMING OFF avoids per-node instrumentation overhead, so this measures the
- * query rather than the measurement.
+ * Server-side execution, which is what §6.2 specifies. TIMING OFF avoids
+ * per-node instrumentation overhead, so this measures the query rather than the
+ * measurement.
  */
 async function timeServerExecution(): Promise<number> {
   const rows = await db.execute<{ 'QUERY PLAN': string }>(
     sql`explain (analyze, timing off) select * from match_schemes(${JSON.stringify(profile)}::jsonb)`,
   );
   const text = rows.map((row) => row['QUERY PLAN']).join('\n');
-  const match = text.match(/Execution Time: ([\d.]+) ms/);
-  return match?.[1] ? Number.parseFloat(match[1]) : Infinity;
+  return Number.parseFloat(text.match(/Execution Time: ([\d.]+) ms/)?.[1] ?? 'NaN');
 }
 
 const median = (samples: number[]): number => {
@@ -82,25 +82,33 @@ const median = (samples: number[]): number => {
 beforeAll(async () => {
   await db.delete(schema.schemes).where(sql`slug like ${SLUG_PREFIX + '%'}`);
 
-  const rows = Array.from({ length: CORPUS_SIZE }, (_, index) => ({
-    slug: `${SLUG_PREFIX}${index}`,
-    name: { en: `Perf scheme ${index}` },
-    summary: { en: 'Synthetic scheme for the matching-speed benchmark.' },
-    eligibility: syntheticRule(index) as unknown as { op: string },
-    sourceProse: 'Aged 18 to 40 with income up to 250000.',
-    sourceUrl: 'https://www.myscheme.gov.in/',
-  }));
+  const existing = await db.execute<{ n: number }>(sql`select count(*)::int as n from schemes`);
+  corpusSize = existing[0]?.n ?? 0;
 
-  // Chunked so the insert itself does not hit a parameter limit.
-  for (let i = 0; i < rows.length; i += 50) {
-    await db.insert(schema.schemes).values(rows.slice(i, i + 50));
+  if (corpusSize < 150) {
+    const rows = Array.from({ length: SEED_SIZE }, (_, index) => ({
+      slug: `${SLUG_PREFIX}${index}`,
+      name: { en: `Perf scheme ${index}` },
+      summary: { en: 'Synthetic scheme for the matching-speed benchmark.' },
+      eligibility: syntheticRule(index) as unknown as { op: string },
+      sourceProse: 'Aged 18 to 40 with income up to 250000.',
+      sourceUrl: 'https://www.myscheme.gov.in/',
+    }));
+
+    for (let i = 0; i < rows.length; i += 50) {
+      await db.insert(schema.schemes).values(rows.slice(i, i + 50));
+    }
+    seeded = true;
+    corpusSize += SEED_SIZE;
   }
 
   await db.execute(sql`analyze schemes`);
 }, 60_000);
 
 afterAll(async () => {
-  await db.delete(schema.schemes).where(sql`slug like ${SLUG_PREFIX + '%'}`);
+  if (seeded) {
+    await db.delete(schema.schemes).where(sql`slug like ${SLUG_PREFIX + '%'}`);
+  }
   await db.$client.end({ timeout: 5 });
 });
 
@@ -118,22 +126,22 @@ describe('matching speed', () => {
     const serverMedian = median(server);
     const roundTripMedian = median(roundTrip);
 
-    // Both are reported because they answer different questions. The §6.2
-    // metric is server-side execution; the round-trip figure is what the API
-    // tier actually waits for and feeds the ≤2s end-to-end budget (§6.1).
+    // Both are reported because they answer different questions: §6.2 is about
+    // server execution, while the round-trip is what the API tier waits for and
+    // feeds the ≤2s end-to-end budget (§6.1).
     console.log(
-      `    match_schemes over ${CORPUS_SIZE} schemes\n` +
+      `    match_schemes over ${corpusSize} schemes${seeded ? ' (synthetic)' : ' (real corpus)'}\n` +
         `      server execution : median ${serverMedian.toFixed(1)}ms  (§6.2 target <${TARGET_MS}ms)\n` +
-        `      client round-trip: median ${roundTripMedian.toFixed(1)}ms  (adds transport + deserialising ${CORPUS_SIZE} rows)`,
+        `      client round-trip: median ${roundTripMedian.toFixed(1)}ms`,
     );
 
     expect(serverMedian).toBeLessThan(TARGET_MS);
   }, 60_000);
 
   it('does not let the planner trigger JIT on a corpus this small', async () => {
-    // The planner's row estimate for haqdaar_leaves drives the total cost. When
-    // that estimate is wrong by two orders of magnitude the cost crosses
-    // jit_above_cost, and JIT compilation costs more than the entire query.
+    // The planner's row estimate for haqdaar_leaves drives total cost. When it
+    // was wrong by two orders of magnitude the cost crossed jit_above_cost and
+    // JIT compilation cost more than the entire query (ADR-010).
     const plan = await db.execute<{ 'QUERY PLAN': string }>(
       sql`explain (analyze, format text) select * from match_schemes(${JSON.stringify(profile)}::jsonb)`,
     );

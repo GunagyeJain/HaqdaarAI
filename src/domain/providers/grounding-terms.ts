@@ -76,10 +76,17 @@ export const BOOLEAN_TERMS: Partial<Record<ProfileField, string[]>> = {
   ],
 };
 
-/** State names, plus their codes. Built from the same table the UI renders. */
+/**
+ * State names only — never the bare two-letter code.
+ *
+ * A citizen says "Punjab", not "PB". Accepting the code as evidence made
+ * ordinary words into state mentions: "ld" is inside "old", "children" and
+ * "world"; "as" inside "as"; "up" inside "up". Each of those grounded a state
+ * nobody named, and a wrong state clause disqualifies someone from every scheme
+ * in the state they actually live in.
+ *
+ * Found by the adversarial eval in tests/eval/hallucination.test.ts.
+ */
 export const STATE_TERMS: Record<string, string[]> = Object.fromEntries(
-  Object.entries(STATE_LABELS).map(([code, label]) => [
-    code,
-    [label.toLowerCase(), code.toLowerCase()],
-  ]),
+  Object.entries(STATE_LABELS).map(([code, label]) => [code, [label.toLowerCase()]]),
 );

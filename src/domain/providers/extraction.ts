@@ -33,6 +33,39 @@ export type ExtractionResult =
 
 const normalize = (text: string) => text.toLowerCase();
 
+/** Latin script has usable word boundaries; Indic scripts do not. */
+const isLatin = (term: string) => /^[\x20-\x7E]+$/.test(term);
+
+const isWordChar = (char: string) => char !== '' && /[a-z0-9]/i.test(char);
+
+/**
+ * Whole-word containment for Latin terms, substring for everything else.
+ *
+ * Naive substring matching turned ordinary words into evidence: "job" inside
+ * "jobless" grounded a salaried occupation for someone who had just said they
+ * have no work, and the two-letter state codes were far worse. Indic terms are
+ * long and distinctive enough that substring matching stays safe, and word
+ * boundaries are an ASCII notion that would not apply to them anyway.
+ */
+function containsTerm(haystack: string, term: string): boolean {
+  const needle = normalize(term);
+  if (needle === '') return false;
+  if (!isLatin(needle)) return haystack.includes(needle);
+
+  // Scanned rather than built into a RegExp: terms come from data files and
+  // may contain characters that are meaningful in a pattern.
+  for (let from = 0; ; from += 1) {
+    const at = haystack.indexOf(needle, from);
+    if (at === -1) return false;
+
+    const before = at === 0 ? '' : (haystack[at - 1] ?? '');
+    const after = haystack[at + needle.length] ?? '';
+    if (!isWordChar(before) && !isWordChar(after)) return true;
+
+    from = at;
+  }
+}
+
 /** Does the transcript contain evidence for this field having this value? */
 function isGrounded(field: ProfileField, value: unknown, transcript: string): boolean {
   const haystack = normalize(transcript);
@@ -47,19 +80,19 @@ function isGrounded(field: ProfileField, value: unknown, transcript: string): bo
       // Silence is never a "yes". A false value needs the same evidence: it is
       // still an assertion about the citizen.
       const terms = BOOLEAN_TERMS[field] ?? [];
-      return terms.some((term) => haystack.includes(normalize(term)));
+      return terms.some((term) => containsTerm(haystack, term));
     }
 
     case 'enum': {
       if (typeof value !== 'string') return false;
       const terms =
         field === 'state' ? STATE_TERMS[value] : ENUM_TERMS[field]?.[value];
-      return (terms ?? []).some((term) => haystack.includes(normalize(term)));
+      return (terms ?? []).some((term) => containsTerm(haystack, term));
     }
 
     case 'string':
       // Free text must appear verbatim; there is nothing else to check it against.
-      return typeof value === 'string' && haystack.includes(normalize(value));
+      return typeof value === 'string' && containsTerm(haystack, value);
   }
 }
 

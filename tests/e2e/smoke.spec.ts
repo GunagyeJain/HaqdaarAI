@@ -29,7 +29,7 @@ test('redirects the bare root to the default locale', async ({ page }) => {
 
 test('switching language navigates and re-renders', async ({ page }) => {
   await page.goto('/en');
-  await page.getByRole('combobox').selectOption('pa');
+  await page.locator('#locale-switcher').selectOption('pa');
 
   await expect(page).toHaveURL(/\/pa$/);
   await expect(page.locator('h1')).toContainText(/ਹੱਕਦਾਰ/);

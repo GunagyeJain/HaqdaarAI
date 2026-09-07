@@ -1,35 +1,50 @@
 import { useTranslations } from 'next-intl';
 import { setRequestLocale } from 'next-intl/server';
 import { LocaleSwitcher } from '@/components/locale-switcher';
+import { ProfileForm } from '@/components/profile-form';
+import { ResultsPanel } from '@/components/results-panel';
+import { ProfileProvider } from '@/lib/profile-state';
 
 export default async function HomePage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
   setRequestLocale(locale);
 
-  return <Home />;
+  return (
+    <ProfileProvider locale={locale}>
+      <Home />
+    </ProfileProvider>
+  );
 }
 
 function Home() {
   const t = useTranslations('home');
   const tApp = useTranslations('app');
+  const tPrivacy = useTranslations('privacy');
 
   return (
-    <main className="mx-auto flex min-h-dvh max-w-2xl flex-col px-6 py-10">
+    <main className="mx-auto flex min-h-dvh max-w-5xl flex-col px-4 py-6 sm:px-6">
       <header className="flex items-center justify-between gap-4">
         <span className="text-lg font-semibold tracking-tight">{tApp('name')}</span>
         <LocaleSwitcher />
       </header>
 
-      <div className="flex flex-1 flex-col justify-center py-16">
-        <h1 className="text-4xl font-bold tracking-tight text-balance">{t('title')}</h1>
-        <p className="mt-4 text-lg text-[var(--color-ink-muted)] text-pretty">{t('subtitle')}</p>
-
-        <p className="mt-10 inline-flex w-fit rounded-full border border-[var(--color-border)] bg-[var(--color-surface-raised)] px-3 py-1 text-sm text-[var(--color-ink-muted)]">
-          {t('status')}
+      <div className="py-8">
+        <h1 className="text-3xl font-bold tracking-tight text-balance sm:text-4xl">{t('title')}</h1>
+        <p className="mt-3 max-w-2xl text-lg text-[var(--color-ink-muted)] text-pretty">
+          {t('subtitle')}
+        </p>
+        {/* INVARIANT 5, stated to the citizen rather than only in the code. */}
+        <p className="mt-4 inline-block rounded-lg bg-[var(--color-surface-raised)] px-3 py-2 text-sm text-[var(--color-ink-muted)] ring-1 ring-[var(--color-border)]">
+          {tPrivacy('notice')}
         </p>
       </div>
 
-      <footer className="border-t border-[var(--color-border)] pt-6 text-sm text-[var(--color-ink-muted)]">
+      <div className="grid flex-1 items-start gap-8 lg:grid-cols-2">
+        <ProfileForm />
+        <ResultsPanel />
+      </div>
+
+      <footer className="mt-10 border-t border-[var(--color-border)] pt-6 text-sm text-[var(--color-ink-muted)]">
         {tApp('disclaimer')}
       </footer>
     </main>

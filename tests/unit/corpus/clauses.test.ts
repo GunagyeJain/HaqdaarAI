@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { synthesizeClause, synthesizeRuleTree } from '@/domain/corpus/clauses';
+import { synthesizeClauses, synthesizeRuleTree } from '@/domain/corpus/clauses';
 import type { RuleNode } from '@/domain/rules/types';
 
 /**
@@ -14,6 +14,15 @@ import type { RuleNode } from '@/domain/rules/types';
  * Where these tests look pedantically strict about refusing to parse something,
  * that is the point.
  */
+
+/** Single-criterion prose yields exactly one clause. */
+const synthesizeClause = (prose: string): RuleNode => {
+  const clauses = synthesizeClauses(prose);
+  if (clauses.length !== 1) {
+    throw new Error(`expected 1 clause, got ${clauses.length}: ${JSON.stringify(clauses)}`);
+  }
+  return clauses[0]!;
+};
 
 const isWildcard = (node: RuleNode, reason?: string) =>
   node.op === 'WILDCARD' && (reason === undefined || node.reason === reason);
@@ -213,6 +222,65 @@ describe('prose that is not a bullet list', () => {
     expect(clauses).toEqual([
       { field: 'gender', op: 'eq', value: 'female' },
       { field: 'residence', op: 'eq', value: 'rural' },
+    ]);
+  });
+});
+
+describe('several criteria in one sentence', () => {
+  // Real prose from a Punjab scheme. Emitting only the gender clause told a
+  // 42-year-old woman she qualified for a scheme restricted to women over 60.
+  const busScheme =
+    'All women of 60 years and above residing in the State of Punjab can avail of the benefits under the scheme.';
+
+  it('recognises "N years and above" as a lower bound', () => {
+    expect(synthesizeClauses('The applicant must be 60 years and above.')).toContainEqual({
+      field: 'age',
+      op: 'gte',
+      value: 60,
+    });
+  });
+
+  it.each([
+    '60 years or above',
+    '60 years and above',
+    '60 years or more',
+    '60 years and older',
+  ])('recognises "%s"', (phrase) => {
+    expect(synthesizeClauses(`The applicant must be ${phrase}.`)).toContainEqual({
+      field: 'age',
+      op: 'gte',
+      value: 60,
+    });
+  });
+
+  it('captures every criterion in a conjunctive sentence', () => {
+    const clauses = synthesizeClauses(busScheme);
+
+    expect(clauses).toContainEqual({ field: 'age', op: 'gte', value: 60 });
+    expect(clauses).toContainEqual({ field: 'gender', op: 'eq', value: 'female' });
+  });
+
+  it('emits at most one clause per field', () => {
+    const clauses = synthesizeClauses(busScheme);
+    const fields = clauses.filter((c) => c.op !== 'WILDCARD').map((c) => 'field' in c && c.field);
+    expect(new Set(fields).size).toBe(fields.length);
+  });
+
+  it('refuses a disjunctive sentence rather than conjoining alternatives', () => {
+    // "A or B" conjoined into "A and B" would wrongly exclude someone who
+    // satisfies only one — the exact false-negative harm the project exists to
+    // prevent. Structure we cannot read is UNKNOWN, not a guess.
+    const clauses = synthesizeClauses(
+      'The applicant must be a woman or belong to the SC category.',
+    );
+    expect(clauses).toHaveLength(1);
+    expect(clauses[0]?.op).toBe('WILDCARD');
+  });
+
+  it('does not mistake a comparison idiom for a disjunction', () => {
+    // "or more" and "or above" are comparison idioms, not alternatives.
+    expect(synthesizeClauses('Disability of 40% or more is required.')).toEqual([
+      { field: 'disabilityPercentage', op: 'gte', value: 40 },
     ]);
   });
 });

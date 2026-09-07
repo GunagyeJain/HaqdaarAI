@@ -39,6 +39,21 @@ const AMBIGUITY_MARKERS =
 const EXCEPTION_MARKERS =
   /\b(?:no\s+limit|except|exempt\w*|relaxa\w*|relaxable|not\s+applicable|waived|shall\s+not\s+apply|other\s+than)\b/i;
 
+/**
+ * A genuine "either/or" between criteria.
+ *
+ * One sentence can state several requirements, and conjoining them is right
+ * when they are joined by "and". Conjoining *alternatives* is not: turning
+ * "a woman or an SC applicant" into "a woman AND an SC applicant" wrongly
+ * excludes anyone satisfying only one — the false negative this project exists
+ * to prevent. Structure we cannot read is UNKNOWN, never a guess.
+ *
+ * The lookahead exempts comparison idioms: "40% or more" and "60 years or
+ * above" are single bounds, not choices.
+ */
+const DISJUNCTION_MARKERS =
+  /\b(?:or|either)\b(?!\s*(?:more|above|higher|greater|less|below|lower|fewer|older|younger|equal|over|under|before|after|上))/i;
+
 const AGE_CONTEXT = /\b(?:age|aged|years?|yrs?)\b/i;
 const INCOME_CONTEXT = /\bincome\b/i;
 
@@ -87,6 +102,16 @@ const PATTERNS: Pattern[] = [
   {
     context: AGE_CONTEXT,
     pattern: /(?:at\s+least|minimum(?:\s+age)?(?:\s+(?:of|is))?)\s+(\d+)\s*(?:years|yrs)/i,
+    build: (m) => {
+      const value = num(m[1]);
+      return value === null ? null : { field: 'age', op: 'gte', value };
+    },
+  },
+  {
+    context: AGE_CONTEXT,
+    // "60 years and above", "60 years or older", "aged 60 and above".
+    pattern:
+      /(\d+)\s*(?:years|yrs)?\s*(?:and|or)\s+(?:above|older|more|over)/i,
     build: (m) => {
       const value = num(m[1]);
       return value === null ? null : { field: 'age', op: 'gte', value };
@@ -210,18 +235,28 @@ const wildcard = (sourceText: string, reason: WildcardClause['reason']): Wildcar
 });
 
 /**
- * Synthesises a single clause from one bullet of eligibility prose.
- * Always returns a node — unrecognised prose becomes a WILDCARD, never nothing.
+ * Synthesises the clauses stated by one bullet of eligibility prose.
+ *
+ * A single sentence often states several criteria — "All women of 60 years and
+ * above residing in Punjab" states three — so this returns every high-confidence
+ * pattern that matches, at most one per profile field. Returning only the first
+ * silently dropped the rest, which told a 42-year-old woman she qualified for a
+ * scheme restricted to women over 60.
+ *
+ * Always returns at least one node: unrecognised prose becomes a WILDCARD,
+ * never nothing.
  */
-export function synthesizeClause(prose: string): RuleNode {
+export function synthesizeClauses(prose: string): RuleNode[] {
   const text = prose.trim();
 
   // Qualified, conditional, or partially-waived prose is not safely reducible
-  // to one clause, even when its parts look parseable. These guards run first
-  // for that reason.
+  // to clauses, however parseable its parts look.
   if (AMBIGUITY_MARKERS.test(text) || EXCEPTION_MARKERS.test(text)) {
-    return wildcard(text, 'ambiguous');
+    return [wildcard(text, 'ambiguous')];
   }
+
+  const found: RuleNode[] = [];
+  const claimed = new Set<string>();
 
   for (const { context, pattern, build } of PATTERNS) {
     if (context && !context.test(text)) continue;
@@ -230,10 +265,32 @@ export function synthesizeClause(prose: string): RuleNode {
     if (!match) continue;
 
     const node = build(match, text);
-    if (node) return node;
+    if (!node || !('field' in node)) continue;
+
+    // PATTERNS is ordered most-specific first, so the first pattern to claim a
+    // field wins and later, looser patterns for the same field are skipped.
+    if (claimed.has(node.field)) continue;
+
+    claimed.add(node.field);
+    found.push(node);
   }
 
-  return wildcard(text, 'unmodellable');
+  if (found.length === 0) {
+    return [wildcard(text, 'unmodellable')];
+  }
+
+  // The disjunction guard applies only where we are about to assert something.
+  // "must not be in default to any bank or financial institution" alternates
+  // nouns inside a clause we cannot model anyway — harmless. But "must be SC or
+  // OBC" would assert only the first alternative and wrongly exclude the other,
+  // and "a woman or an SC applicant" would conjoin two alternatives into a
+  // requirement to be both. Either is a false negative, so when a disjunction
+  // sits alongside something we matched, we decline to assert it.
+  if (DISJUNCTION_MARKERS.test(text)) {
+    return [wildcard(text, 'ambiguous')];
+  }
+
+  return found;
 }
 
 /** Strips a markdown list marker. Returns null for a line that is not a bullet. */
@@ -280,7 +337,7 @@ export function synthesizeRuleTree(markdown: string): RuleNode {
     .filter((line): line is string => line !== null);
 
   const segments = bullets.length > 0 ? bullets : sentences(text);
-  const clauses = segments.map(synthesizeClause);
+  const clauses = segments.flatMap(synthesizeClauses);
 
   if (clauses.length === 0) {
     return { op: 'AND', clauses: [wildcard(text, 'unmodellable')] };

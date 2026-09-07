@@ -9,39 +9,51 @@ AI coding agent, so continuity lives here rather than in anyone's memory.
 
 ## Current State
 
-**Phase 2 complete.** The corpus is scraped, normalized and stored; the matcher runs
-against it inside target.
+**Phase 3 complete — the MVP gate is met.** A citizen completes a profile by
+typing alone, in any of five languages, and receives an explained match against
+the real 483-scheme corpus. No AI provider is involved anywhere in this path.
 
 | Gate | Result |
 |---|---|
-| `pnpm lint` | clean |
-| `pnpm typecheck` | clean |
-| `pnpm test` | **182 passed** |
-| `match_schemes()` | **71ms** server-side over 783 schemes (target <100ms) |
+| `pnpm lint` / `pnpm typecheck` | clean |
+| `pnpm test` | **212 passed** |
+| `pnpm test:e2e` | **28 passed** (desktop + mobile) |
+| `match_schemes()` | 71ms server-side |
 
-**Corpus: 483 schemes** across 33 states, from a platform of 4,772. 472 flagged
-`needs_review`. Zero ungrounded bounds — no scraped figure was stored that could
-not be located in the source prose.
+What exists: the shared profile state (which Phase 4's voice console will write
+into), the localized profile form, `POST /api/match`, result cards that explain
+every verdict and expose the government's own wording, and the information-gain
+next-question engine.
 
-Modelled clause coverage: `state` · `gender` · `age` · `annualIncome` · `category` ·
-`isDisabled` · `isBPL` · `residence` · `disabilityPercentage`. Only 9 of the first
-300 schemes ended up with no modelled clause at all.
+**The question engine works as specified.** With age alone it asks for `state`
+(unblocking 440 schemes); with age and state it asks for `annualIncome`
+(unblocking 27) — deferring the sensitive question until it was genuinely the
+highest-value one. When every undecided scheme is blocked only by wildcards it
+returns null rather than asking something that could not help.
 
-**A note on what the verdicts look like.** A full Punjab profile returns roughly
-1 PASS, 26 UNKNOWN, 456 FAIL. PASS is rare *by design*: most schemes carry at least
-one clause we deliberately refuse to model, and a WILDCARD is UNKNOWN forever. The
-UNKNOWN set is the actionable output — "you may qualify, here is what we cannot tell
-and here is the government's own wording" — not a failure mode. A system that forced
-a binary answer would have to guess on ~1,100 clauses, and each guess risks telling
-someone they do not qualify when they do.
+**A false positive found by running the app.** A 42-year-old woman was shown
+PASS for "Concessional Bus Travel Facility to Women above 60". The prose reads
+"All women of 60 years and above residing in the State of Punjab" — a single
+sentence stating three criteria, of which synthesis emitted only the gender.
+Two fixes: `"N years and above"` is now a recognised bound, and synthesis emits
+every high-confidence pattern rather than the first. A disjunction guard keeps
+that safe: when an "or" sits alongside something we matched, we decline to
+assert rather than conjoin alternatives into a false negative.
+
+**`pnpm db:renormalize` was the payoff for invariant 4.** Keeping the source
+prose was justified as an audit trail; it also meant the whole corpus could be
+rebuilt from stored prose in seconds instead of re-scraping for half an hour.
+The prose is the source of truth; the rule tree is a derived artefact.
 
 ## Next Step
 
-**Phase 3 — the typed path, and the MVP gate.** Shared profile state, the localized
-profile form, `POST /api/match`, result cards showing PASS/FAIL/UNKNOWN *with their
-reasoning*, and the information-gain next-question engine.
+**Phase 4 — voice, strictly additive.** `MediaRecorder` capture, Sarvam STT/TTS
+behind the provider interface, Groq extraction in strict JSON-schema mode into
+the editable-fields confirmation gate, and browser-native fallbacks built in
+from the start and tested.
 
-This is the proposal's own definition of success. Treat it as independently shippable.
+Nothing in Phase 4 may make the typed path a prerequisite or a fallback — it is
+the product, and voice is an accelerant.
 
 ---
 
@@ -84,16 +96,17 @@ proven capable of catching a deliberate mutation.
 
 **Exit met:** 483 schemes (target 150+), all Zod-valid, zero ungrounded bounds stored.
 
-### Phase 3 — Typed path (MVP GATE)
-- [ ] Shared profile state (consumed later by both input paths)
-- [ ] Localized typed profile form
-- [ ] `POST /api/match`
-- [ ] Result cards: PASS / FAIL / UNKNOWN **with reasoning**
-- [ ] Information-gain next-question engine
-- [ ] Full i18n across all five locales
+### Phase 3 — Typed path (MVP GATE) ✅
+- [x] Shared profile state (consumed later by both input paths)
+- [x] Localized typed profile form
+- [x] `POST /api/match`
+- [x] Result cards: PASS / FAIL / UNKNOWN **with reasoning** and source prose
+- [x] Information-gain next-question engine
+- [x] Full i18n across all five locales
+- [x] `pnpm db:renormalize` — rebuild rule trees from stored prose, no re-scrape
 
-**Exit:** a citizen completes a profile by typing alone and receives an explained match.
-**This is the proposal's own definition of success — treat it as independently shippable.**
+**Exit met:** verified end to end by `tests/e2e/typed-journey.spec.ts`, including
+a complete journey in Punjabi, against the real corpus with no AI provider configured.
 
 ### Phase 4 — Voice (additive)
 - [ ] `MediaRecorder` capture

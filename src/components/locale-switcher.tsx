@@ -21,6 +21,7 @@ export function LocaleSwitcher() {
     <label className="flex items-center gap-2 text-sm">
       <span className="sr-only">{t('languageLabel')}</span>
       <select
+        id="locale-switcher"
         value={locale}
         disabled={isPending}
         onChange={(event) => {

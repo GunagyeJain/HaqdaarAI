@@ -57,15 +57,41 @@ describe('message completeness', () => {
     }
   });
 
+  /** Walks a nested message object, yielding every leaf as [dotted key, value]. */
+  function* leaves(value: unknown, prefix = ''): Generator<[string, unknown]> {
+    if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+      yield [prefix, value];
+      return;
+    }
+    for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+      yield* leaves(child, prefix ? `${prefix}.${key}` : key);
+    }
+  }
+
   it('no locale ships an empty or untranslated-looking string', async () => {
     for (const locale of locales) {
-      const messages = (await loadMessages(locale)) as Record<string, Record<string, string>>;
+      for (const [key, value] of leaves(await loadMessages(locale))) {
+        expect(typeof value, `${locale}:${key} should be a string`).toBe('string');
+        expect(String(value).trim(), `${locale}:${key}`).not.toBe('');
+        expect(String(value), `${locale}:${key}`).not.toMatch(/^TODO/i);
+      }
+    }
+  });
 
-      for (const [namespace, entries] of Object.entries(messages)) {
-        for (const [key, value] of Object.entries(entries)) {
-          expect(value.trim(), `${locale}:${namespace}.${key}`).not.toBe('');
-          expect(value, `${locale}:${namespace}.${key}`).not.toMatch(/^TODO/i);
-        }
+  it('keeps ICU placeholders consistent across locales', async () => {
+    // A translation that drops {count} renders a sentence missing its number;
+    // one that invents a placeholder throws at render time.
+    const placeholders = (value: unknown) =>
+      [...String(value).matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
+
+    const english = new Map([...leaves(await loadMessages('en'))]);
+
+    for (const locale of locales) {
+      if (locale === 'en') continue;
+      for (const [key, value] of leaves(await loadMessages(locale))) {
+        expect(placeholders(value), `${locale}:${key} placeholders`).toEqual(
+          placeholders(english.get(key)),
+        );
       }
     }
   });

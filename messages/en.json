@@ -7,7 +7,129 @@
   },
   "home": {
     "title": "Know what you are entitled to",
-    "subtitle": "Describe yourself by speaking or by typing, and find the welfare schemes you qualify for.",
-    "status": "Phase 0 — foundation"
+    "subtitle": "Tell us about yourself and we will find the welfare schemes you qualify for. Answer only what you want to.",
+    "status": "Typed profile"
+  },
+  "privacy": {
+    "notice": "Nothing you enter is saved. Your answers stay in this browser and are never stored."
+  },
+  "profile": {
+    "heading": "About you",
+    "intro": "Every question is optional. The more you answer, the more we can tell you.",
+    "submit": "Find my schemes",
+    "submitting": "Checking schemes…",
+    "reset": "Start again",
+    "notAnswered": "Not answered",
+    "answered": "{count} of {total} answered",
+    "yes": "Yes",
+    "no": "No",
+    "field": {
+      "age": "Age",
+      "gender": "Gender",
+      "state": "State",
+      "district": "District",
+      "residence": "Where you live",
+      "annualIncome": "Yearly family income (₹)",
+      "category": "Social category",
+      "isMinority": "Do you belong to a religious minority?",
+      "occupation": "What you do",
+      "education": "Highest education",
+      "maritalStatus": "Marital status",
+      "isDisabled": "Do you have a disability?",
+      "disabilityPercentage": "Disability percentage",
+      "isBPL": "Do you hold a Below Poverty Line (BPL) card?",
+      "landHoldingHectares": "Land you farm (hectares)",
+      "familySize": "People in your family"
+    },
+    "option": {
+      "gender": { "male": "Male", "female": "Female", "transgender": "Transgender" },
+      "residence": { "urban": "Town or city", "rural": "Village" },
+      "category": {
+        "general": "General",
+        "obc": "OBC",
+        "sc": "Scheduled Caste (SC)",
+        "st": "Scheduled Tribe (ST)",
+        "ews": "EWS"
+      },
+      "occupation": {
+        "farmer": "Farmer",
+        "student": "Student",
+        "unemployed": "Not working",
+        "salaried": "Salaried job",
+        "self_employed": "Self-employed",
+        "daily_wage": "Daily wage work",
+        "artisan": "Artisan or craftsperson",
+        "fisherman": "Fisherman",
+        "homemaker": "Homemaker",
+        "retired": "Retired"
+      },
+      "education": {
+        "none": "No formal schooling",
+        "primary": "Primary school",
+        "secondary": "Class 10",
+        "higher_secondary": "Class 12",
+        "graduate": "Graduate",
+        "postgraduate": "Postgraduate"
+      },
+      "maritalStatus": {
+        "single": "Unmarried",
+        "married": "Married",
+        "widowed": "Widowed",
+        "divorced": "Divorced"
+      }
+    }
+  },
+  "results": {
+    "heading": "What we found",
+    "summary": "{pass} you qualify for, {unknown} you may qualify for, out of {total} schemes checked.",
+    "empty": "Tell us a little about yourself to see schemes.",
+    "pass": "You qualify",
+    "passHint": "Every criterion we can check is met.",
+    "unknown": "You may qualify",
+    "unknownHint": "We cannot tell yet. Some criteria could not be checked automatically.",
+    "fail": "Not eligible",
+    "failHint": "At least one criterion is not met.",
+    "whyMatched": "What you meet",
+    "whyFailed": "What does not match",
+    "stillNeeded": "Still needed to decide",
+    "sourceProse": "The government's own wording",
+    "viewOnMyScheme": "View on myScheme",
+    "showFailed": "Show {count} schemes you are not eligible for",
+    "hideFailed": "Hide these",
+    "central": "Central government",
+    "clause": {
+      "age": "Age",
+      "gender": "Gender",
+      "state": "State",
+      "district": "District",
+      "residence": "Residence",
+      "annualIncome": "Yearly income",
+      "category": "Social category",
+      "isMinority": "Minority status",
+      "occupation": "Occupation",
+      "education": "Education",
+      "maritalStatus": "Marital status",
+      "isDisabled": "Disability",
+      "disabilityPercentage": "Disability percentage",
+      "isBPL": "BPL card",
+      "landHoldingHectares": "Land holding",
+      "familySize": "Family size"
+    },
+    "op": {
+      "eq": "is {value}",
+      "neq": "is not {value}",
+      "lt": "is under {value}",
+      "lte": "is {value} or less",
+      "gt": "is over {value}",
+      "gte": "is {value} or more",
+      "between": "is between {min} and {max}",
+      "in": "is one of {value}",
+      "not_in": "is not one of {value}"
+    }
+  },
+  "question": {
+    "heading": "One more question would help",
+    "unblocks": "Answering this could decide {count} more schemes.",
+    "skip": "Skip this"
   }
 }

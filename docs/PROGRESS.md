@@ -9,50 +9,49 @@ AI coding agent, so continuity lives here rather than in anyone's memory.
 
 ## Current State
 
-**Phase 5 complete.** Every §6 metric is now an executable number rather than a
-claim in prose.
+**Phase 6 substantially complete.** The accessibility pass is done and gated;
+deployment is configured and documented but **not executed** — that needs your
+Vercel and Neon accounts.
 
-| Metric | Target | Measured |
-|---|---|---|
-| Response latency (§6.1) | median ≤2s | **338ms** typed, p95 758ms |
-| Extraction accuracy (§6.2) | 0% hallucinated | **0** across 38 transcripts |
-| Matching speed (§6.2) | <100ms | **52.9ms** over 483 schemes |
-| Corpus coverage (§6.2) | ≥150 schemes | **483**, 98% modelled |
-| Reliability (§6.2) | graceful degradation | every fallback exercised |
+Suites: **243 unit/integration · 43 eval · 70 e2e.** WCAG 2.1 AA clean across
+all five locales, desktop and mobile.
 
-Suites: **243 unit/integration · 43 eval · 48 e2e.**
+**The accessibility audit found real defects, which is why it exists.** The
+first run reported **54 colour-contrast violations**: the verdict colours were
+perfectly legible on this monitor and failed AA. For a tool aimed at people
+reading cheap screens in sunlight, that is not cosmetic. Text now uses darkened
+tokens kept separate from decorative ones, so a dot stays vivid without dragging
+its label below threshold. Dark mode was added at the same time — on the OLED
+panels common in this price bracket it costs less battery, which matters when a
+phone may be shared or charged infrequently.
 
-**The eval tests our defence, not the vendor's goodwill.** The adversarial half
-runs in CI on every push: a provider that fabricates all sixteen fields must not
-get a single value past grounding. Testing only the live model would make the
-gate hostage to a rate limit and would fail for reasons that are not our
-regression.
+It also surfaced a performance problem: rendering all 455 ineligible schemes
+took over 30 seconds. Capped at 25 rendered cards with the full count always
+stated — a rendering limit, never a hidden result.
 
-**The adversarial eval immediately earned itself.** It found that grounding
-matched two-letter state codes as *substrings* — `"ld"` is inside "old",
-"children" and "world"; `"as"` inside "as"; `"up"` inside "up". Five golden
-transcripts were grounding a state nobody had named, and a wrong state clause
-disqualifies a citizen from every scheme in the state they actually live in.
-Fixed by matching whole words for Latin terms and never accepting a bare code.
-
-**A benchmark whose subject changes is not a benchmark.** The matching-speed
-test had been seeding 300 synthetic schemes on top of whatever was already
-there, so the number depended on whether you had scraped. It now measures the
-real corpus when one exists and seeds only on an empty database — and says which
-it did.
+**The scheduled re-scrape workflow exists** (`.github/workflows/scrape.yml`),
+runs weekly, and treats the corpus-coverage gate as a real gate because unlike
+CI it has a corpus. It has **not yet fired**, and the pipeline document is right
+that an unverified re-scrape is a deployment blocker.
 
 ## Next Step
 
-**Phase 6 — deployment.** Vercel plus Neon, migrations applied, the scheduled
-re-scrape workflow verified to fire once, and the accessibility pass. Then
-re-run every metric above against production, because managed hosting shifts
-them and a developer-machine number is not the result.
+**Finish Phase 6 — deploy.** Follow [DEPLOYMENT.md](DEPLOYMENT.md): Neon
+project, migrations, corpus, Vercel import, `DATABASE_URL` secret. Then re-run
+the metrics against production and record them *next to* the local numbers
+rather than replacing them — the difference is itself a finding.
 
-**Two things are owed before the pilot**, both recorded rather than quietly
-dropped: verification against real Sarvam and Groq credentials (which also
-unblocks the voice latency metric), and the manual audit of a 15-scheme random
-sample against source prose — the only check that catches a rule that is
-well-formed, correctly grounded, and still wrong.
+Then **Phase 7 — pilot**.
+
+### Owed before the pilot, and not quietly dropped
+
+1. **Real Sarvam and Groq credentials.** The voice path has never run against a
+   live provider. This also unblocks the voice latency metric, which is
+   currently reported as unmeasured rather than approximated.
+2. **The manual audit** of 15 random schemes against their source prose. The
+   only check that catches a rule which is well-formed, correctly grounded, and
+   still wrong.
+3. **Verify the scheduled scrape fires** at least once.
 
 ---
 
@@ -136,11 +135,16 @@ and every provider failure degrades with an attributable reason.
 and is reported as unmeasured rather than approximated from the typed figure.
 
 ### Phase 6 — Design pass and deployment
-- [ ] Accessibility-first visual refinement — WCAG AA, large tap targets, high contrast
-- [ ] Performance on low-end Android
-- [ ] Deploy: Vercel + Neon, migrations applied
-- [ ] GitHub Actions scheduled re-scrape, **verified to fire once**
-- [ ] Re-run latency benchmarks against production
+- [x] WCAG 2.1 AA, automated across all five locales, desktop and mobile
+- [x] 44px touch targets, keyboard reachability, visible focus, reduced-motion
+- [x] Verdict colour never the only signal
+- [x] Dark mode following system preference
+- [x] Rendering cap on the ineligible list (455 cards → 25)
+- [x] Scheduled re-scrape workflow written
+- [x] [DEPLOYMENT.md](DEPLOYMENT.md) — hosting, environment, post-deploy checks
+- [ ] **Deploy to Vercel + Neon** — needs your accounts
+- [ ] **Verify the scheduled scrape fires once** — deployment blocker
+- [ ] Re-run all metrics against production
 
 **Exit:** live, and all metrics re-verified on real infrastructure.
 

@@ -86,6 +86,7 @@ Requires Node 20+, pnpm, and Docker.
 | [docs/SCRAPER.md](docs/SCRAPER.md) | Corpus acquisition and prose grounding |
 | [docs/EVALUATION.md](docs/EVALUATION.md) | Success metrics as executable gates |
 | [docs/DECISIONS.md](docs/DECISIONS.md) | Architecture decision records |
+| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Hosting, environment and post-deploy checks |
 | [docs/PROGRESS.md](docs/PROGRESS.md) | Current state and phase tracking |
 
 ---

@@ -1,0 +1,69 @@
+name: Refresh scheme corpus
+
+# Benefit amounts and eligibility text change with policy, so a stale corpus is
+# a correctness problem rather than a hygiene one (proposal §10). ADR-005: this
+# runs here rather than on Vercel Cron because a full Playwright session takes
+# minutes and exceeds serverless execution limits.
+on:
+  schedule:
+    # 02:30 UTC ≈ 08:00 IST on Sundays — outside Indian working hours, so the
+    # crawl is cheapest for myscheme.gov.in to serve.
+    - cron: '30 2 * * 0'
+  workflow_dispatch:
+    inputs:
+      target_count:
+        description: 'Schemes to collect per keyword pass'
+        required: false
+        default: '300'
+
+concurrency:
+  group: scrape
+  cancel-in-progress: false
+
+jobs:
+  scrape:
+    name: Scrape and verify the corpus
+    runs-on: ubuntu-latest
+    # A full run walks hundreds of scheme pages at human pace.
+    timeout-minutes: 90
+
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      SCRAPE_TARGET_COUNT: ${{ github.event.inputs.target_count || '300' }}
+      SCRAPE_MIN_SCHEMES: '150'
+      SCRAPE_DELAY_MS: '1200'
+      # Empty means Playwright's own bundled Chromium, which CI can download.
+      PW_CHANNEL: ''
+
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Apply migrations
+        run: pnpm db:migrate
+
+      # Exits non-zero on a payload shape change, repeated fetch failures, or a
+      # final count below the floor. Silent under-counting is the failure mode
+      # this guards against — a scraper returning 80 schemes looks exactly like
+      # one that works.
+      - name: Scrape
+        run: pnpm scrape
+
+      # The corpus-coverage gate is a real gate here, because unlike CI this job
+      # has a corpus: ≥150 schemes, every rule tree valid, source prose present
+      # on every row (invariant 4).
+      - name: Verify corpus coverage
+        run: pnpm exec vitest run --project integration
+
+      - name: Report
+        if: ${{ always() }}
+        run: echo "Scrape finished with status ${{ job.status }}"

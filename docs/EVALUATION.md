@@ -166,6 +166,36 @@ Not a §6 metric, but the foundation everything else rests on.
 
 ---
 
+## 7. Accessibility
+
+Not a §6 metric, and arguably it should have been. The people this tool exists
+for are more likely to be on a cheap phone in bright sunlight, to have low
+vision, and to be reading a script that renders poorly at Latin line heights. An
+interface they cannot use excludes exactly the citizen it was built to reach —
+the same harm as a wrong verdict, arrived at differently.
+
+Checked automatically against **WCAG 2.1 AA** (`tests/e2e/accessibility.spec.ts`):
+
+- every locale's landing view, and the populated results view, scanned with axe
+- all interactive controls at least 44px tall, on a mobile viewport
+- full keyboard reachability, and a visible focus ring that is never designed away
+- verdict colour is never the only signal — the verdict is always spelled out
+
+**What the first run found:** 54 colour-contrast violations. The verdict colours
+were legible on a good monitor and failed AA — precisely the case where checking
+beats judgement. Text now uses darkened tokens kept separate from the decorative
+ones, so a dot can stay vivid without dragging its label below threshold.
+
+It also surfaced a performance problem rather than an accessibility one:
+rendering all 455 ineligible schemes took over 30 seconds. The list is now capped
+at 25 rendered cards with the full count always stated.
+
+**Automated checks catch roughly a third of real barriers.** The pilot's
+structured observation is the other two-thirds and is not replaced by a green
+suite.
+
+---
+
 ## Pilot validation (proposal §6.3)
 
 - Each tester completes **one profile entirely by typing** and **one entirely by voice**,

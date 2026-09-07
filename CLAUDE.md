@@ -101,6 +101,7 @@ pnpm db:migrate       # apply Drizzle migrations
 pnpm db:studio        # inspect data
 pnpm scrape           # run the corpus scraper
 pnpm lint typecheck   # static checks
+pnpm db:renormalize   # rebuild rule trees from stored prose, no re-scrape
 ```
 
 ---

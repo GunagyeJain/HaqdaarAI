@@ -3,29 +3,67 @@
 /**
  * Design tokens.
  *
- * The target user may be on a low-end phone in bright sunlight, so contrast and
- * tap-target size are correctness concerns here, not taste. Phase 6 does the full
- * accessibility pass; these are the foundations it builds on.
+ * The assumed reader is on a mid-range Android phone, possibly in bright
+ * sunlight, possibly with low vision, reading a script that is not Latin.
+ * Contrast here is a correctness concern, not taste: an interface this person
+ * cannot read excludes exactly the citizen the tool was built for.
+ *
+ * Every text colour below clears WCAG AA (4.5:1), verified automatically in
+ * tests/e2e/accessibility.spec.ts rather than eyeballed. Decorative colours are
+ * kept separate from text colours precisely so that a dot or a border can be
+ * vivid without dragging a label below the threshold.
  */
 @theme {
   --color-ink: oklch(0.22 0.02 250);
-  --color-ink-muted: oklch(0.48 0.02 250);
+  --color-ink-muted: oklch(0.44 0.015 250);
   --color-surface: oklch(0.99 0.004 250);
   --color-surface-raised: oklch(1 0 0);
-  --color-border: oklch(0.9 0.008 250);
+  --color-border: oklch(0.88 0.008 250);
 
-  --color-brand: oklch(0.52 0.15 250);
+  --color-brand: oklch(0.5 0.15 250);
   --color-brand-strong: oklch(0.42 0.16 250);
 
-  /* Verdict colours — carry meaning, so they must never be the only signal. */
+  /* Decorative — dots, borders, fills. Never used for text. */
   --color-pass: oklch(0.55 0.14 150);
   --color-fail: oklch(0.55 0.18 25);
   --color-unknown: oklch(0.62 0.12 75);
+
+  /* Text equivalents, darkened to clear AA on the raised surface. */
+  --color-pass-text: oklch(0.42 0.12 150);
+  --color-fail-text: oklch(0.44 0.16 25);
+  --color-unknown-text: oklch(0.42 0.09 75);
+}
+
+/**
+ * Dark mode follows the system. Useful in low light, and on the OLED panels
+ * common in this price bracket it costs less battery — which matters when the
+ * phone may be shared or charged infrequently.
+ */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-ink: oklch(0.95 0.01 250);
+    --color-ink-muted: oklch(0.75 0.02 250);
+    --color-surface: oklch(0.18 0.015 250);
+    --color-surface-raised: oklch(0.23 0.015 250);
+    --color-border: oklch(0.36 0.015 250);
+
+    --color-brand: oklch(0.68 0.14 250);
+    --color-brand-strong: oklch(0.78 0.12 250);
+
+    --color-pass: oklch(0.62 0.14 150);
+    --color-fail: oklch(0.62 0.17 25);
+    --color-unknown: oklch(0.72 0.12 75);
+
+    /* Lightened rather than darkened: the ground is dark now. */
+    --color-pass-text: oklch(0.78 0.13 150);
+    --color-fail-text: oklch(0.75 0.15 25);
+    --color-unknown-text: oklch(0.82 0.12 75);
+  }
 }
 
 @layer base {
   :root {
-    color-scheme: light;
+    color-scheme: light dark;
   }
 
   body {
@@ -34,17 +72,30 @@
     -webkit-font-smoothing: antialiased;
   }
 
-  /* Indic scripts need more vertical room than Latin at the same font size. */
+  /* Indic scripts carry more vertical detail than Latin and are unreadable at
+     Latin line heights. Matras and conjuncts collide without this. */
   :lang(hi),
   :lang(pa),
   :lang(bn),
   :lang(ta) {
-    line-height: 1.75;
+    line-height: 1.8;
   }
 
-  /* A visible focus ring is a hard requirement, not a default to be overridden. */
+  /* A visible focus ring is a hard requirement, never something to design away. */
   :focus-visible {
-    outline: 2px solid var(--color-brand);
+    outline: 3px solid var(--color-brand);
     outline-offset: 2px;
+  }
+
+  /* Respect a stated preference for less motion. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 }

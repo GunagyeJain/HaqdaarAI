@@ -132,7 +132,8 @@
       "between": "{min} முதல் {max} வரை",
       "in": "{value}-இல் ஒன்று",
       "not_in": "{value}-இல் எதுவும் அல்ல"
-    }
+    },
+    "showingSome": "{total}-இல் முதல் {shown} காட்டப்படுகின்றன."
   },
   "question": {
     "heading": "மேலும் ஒரு கேள்வி உதவும்",

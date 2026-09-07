@@ -14,6 +14,16 @@ import { SchemeCard } from './scheme-card';
  * honest one, because most carry at least one criterion we deliberately refuse
  * to model rather than guess at.
  */
+/**
+ * How many ineligible schemes to render at once.
+ *
+ * Rendering all of them was measurably slow even on a desktop; on the mid-range
+ * Android this is built for it would be far worse, and the FAIL list is the
+ * least actionable content on the page. The count is always stated in full —
+ * the cap is a rendering limit, not a hidden result.
+ */
+const MAX_FAILED_RENDERED = 25;
+
 export function ResultsPanel() {
   const t = useTranslations('results');
   const { result, nextQuestion, setHighlightedField } = useProfile();
@@ -68,7 +78,18 @@ export function ResultsPanel() {
           >
             {showFailed ? t('hideFailed') : t('showFailed', { count: counts.fail })}
           </button>
-          {showFailed && fail.map((item) => <SchemeCard key={item.schemeId} item={item} />)}
+          {showFailed && (
+            <>
+              {fail.length > MAX_FAILED_RENDERED && (
+                <p className="text-sm text-[var(--color-ink-muted)]">
+                  {t('showingSome', { shown: MAX_FAILED_RENDERED, total: fail.length })}
+                </p>
+              )}
+              {fail.slice(0, MAX_FAILED_RENDERED).map((item) => (
+                <SchemeCard key={item.schemeId} item={item} />
+              ))}
+            </>
+          )}
         </div>
       )}
     </section>

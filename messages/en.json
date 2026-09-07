@@ -132,7 +132,8 @@
       "between": "is between {min} and {max}",
       "in": "is one of {value}",
       "not_in": "is not one of {value}"
-    }
+    },
+    "showingSome": "Showing the first {shown} of {total}."
   },
   "question": {
     "heading": "One more question would help",

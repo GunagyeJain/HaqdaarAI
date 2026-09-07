@@ -19,17 +19,17 @@ import { useClauseText } from './clause-text';
 const VERDICT_STYLE: Record<Verdict, { dot: string; text: string; border: string }> = {
   PASS: {
     dot: 'bg-[var(--color-pass)]',
-    text: 'text-[var(--color-pass)]',
+    text: 'text-[var(--color-pass-text)]',
     border: 'border-l-[var(--color-pass)]',
   },
   UNKNOWN: {
     dot: 'bg-[var(--color-unknown)]',
-    text: 'text-[var(--color-unknown)]',
+    text: 'text-[var(--color-unknown-text)]',
     border: 'border-l-[var(--color-unknown)]',
   },
   FAIL: {
     dot: 'bg-[var(--color-fail)]',
-    text: 'text-[var(--color-fail)]',
+    text: 'text-[var(--color-fail-text)]',
     border: 'border-l-[var(--color-fail)]',
   },
 };

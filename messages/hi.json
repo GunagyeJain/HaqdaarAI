@@ -132,7 +132,8 @@
       "between": "{min} और {max} के बीच है",
       "in": "{value} में से एक है",
       "not_in": "{value} में से कोई नहीं है"
-    }
+    },
+    "showingSome": "{total} में से पहली {shown} दिखाई जा रही हैं।"
   },
   "question": {
     "heading": "एक और प्रश्न मदद करेगा",

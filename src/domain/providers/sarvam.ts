@@ -73,7 +73,9 @@ export const sarvamTts: TtsProvider = {
         text: text.slice(0, 2500),
         target_language_code: speechLocales[locale],
         model: process.env.SARVAM_TTS_MODEL ?? 'bulbul:v3',
-        speaker: process.env.SARVAM_TTS_SPEAKER ?? 'anushka',
+        // Verified against the live API. `anushka` is a bulbul:v2 speaker and
+        // v3 rejects it outright — the kind of thing only a real call catches.
+        speaker: process.env.SARVAM_TTS_SPEAKER ?? 'ritu',
       }),
     });
 

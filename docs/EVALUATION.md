@@ -58,6 +58,13 @@ invented fields across 38 transcripts.**
 *Live (only with `GROQ_API_KEY`):* the real model against the same set,
 reporting hallucination and recall.
 
+The live half is **paced at 13 seconds per call**. Groq's free tier allows 8000
+tokens per minute and each extraction costs roughly 1,600, so an unpaced loop
+hits a rate limit — and worse, the rate limit consumes the bounded retry that
+exists for genuine model glitches, making throttling look like a model failure.
+A full live run therefore takes about nine minutes and is deliberately not part
+of CI.
+
 Testing the model alone would make the gate hostage to a vendor's behaviour and
 to a rate limit; testing the defence means CI fails when *we* regress.
 

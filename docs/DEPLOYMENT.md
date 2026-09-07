@@ -54,12 +54,17 @@ runs weekly and can be dispatched manually.
 | `DATABASE_URL` | **yes** | Pooled Neon connection string |
 | `SARVAM_API_KEY` | no | Indic STT/TTS. Unset → browser speech, then typed form |
 | `GROQ_API_KEY` | no | Extraction only. Unset → voice input disabled, form unaffected |
-| `GROQ_MODEL` | no | Overrides the default; see [ADR-004](DECISIONS.md#adr-004) on model drift |
+| `GROQ_MODEL` | no | **Leave blank.** Defaults to `openai/gpt-oss-20b`, verified available. Other strict-mode options: `openai/gpt-oss-120b`, `qwen/qwen3.8-27b`. The proposal's Llama models were deprecated in June 2026 ([ADR-004](DECISIONS.md#adr-004)) |
+| `SARVAM_TTS_SPEAKER` | no | Defaults to `ritu`. Must be a `bulbul:v3` speaker — v2 names such as `anushka` are rejected |
 | `STT_PROVIDER` / `TTS_PROVIDER` / `LLM_PROVIDER` | no | `sarvam` / `groq` / `none` |
 | `PROVIDER_TIMEOUT_MS` | no | Hard timeout before falling back. Default 4000 |
 
 **Deploying with no AI keys is a supported configuration, not a broken one.**
 It is the state the degradation suite runs in.
+
+**Rate limits.** Groq's free tier is 8000 tokens/minute, roughly five
+extractions. That is comfortable for real use — one call per voice turn — but it
+throttles the live evaluation suite, which is paced accordingly.
 
 ---
 

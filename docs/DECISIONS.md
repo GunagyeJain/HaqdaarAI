@@ -243,3 +243,44 @@ which includes transport and deserialising 300 rows. §6.2 specifies "execution 
 matching function", which is server-side. The benchmark now reports both — server execution and
 round-trip — and asserts on the former, because conflating them either flatters or penalises the
 metric depending on which way the network happens to fall.
+
+---
+
+## ADR-011 — A schema that cannot express "not mentioned" makes the model guess
+
+**Date:** 2026-09-08 · **Status:** Accepted · **Refines:** [ADR-004](#adr-004)
+
+**Context.** ADR-004 committed to strict JSON-schema decoding for extraction. Making that work
+against the live Groq API required three attempts, and the differences between them are not
+cosmetic.
+
+| Schema form | Result |
+|---|---|
+| `anyOf: [schema, {type:'null'}]` | Model emitted the **string** `"null"`; strict decoding rejected the whole response, failing requests whose other fields were all correct. |
+| `type: ['string','null']`, enum unchanged | **HTTP 200, and silently wrong.** With no way to express null for an enum field, the model guessed: *"I am a 42 year old farmer"* came back with `gender: "male"`. |
+| `type: ['string','null']` **and** `null` added to the enum | Correct. The model returns `null`. |
+
+**Decision.** Nullability is expressed as a type array *and* `null` is appended to every enum.
+The `state` field additionally drops its 36-code enum entirely: the model receives a free-text
+name and `toStateCode()` normalises it, the same function the scraper uses.
+
+**Reasoning.** The middle row is the one worth remembering. It returned 200, passed schema
+validation, and invented a protected attribute out of nothing. **A schema that gives a model no
+way to say "they did not tell me" is a schema that forces it to guess** — and guessing about
+gender, caste, income or disability is precisely the harm this project exists to prevent.
+
+The grounding gate caught that fabricated gender downstream, which is the defence working as
+designed. But defence in depth is not a licence to leave a trap in the first layer: the schema
+should never have created the pressure.
+
+Dropping the state enum was a second-order benefit. It was more than half the schema's token
+cost, which on a free-tier key throttled extraction to roughly five calls per minute, and it
+asked the model to recall an arbitrary two-letter code table it has no reason to know.
+
+**Also corrected:** a `400 json_validate_failed` was being classified as *provider unavailable*.
+It is not — it means the model produced malformed output, which is transient and is exactly what
+the bounded retry exists for. Misclassifying it meant the retry never fired on the one condition
+it was written for, while a genuinely absent provider was retried pointlessly.
+
+**Verified against live credentials on 2026-09-08.** None of this was reachable without them; the
+whole voice path would have failed in the pilot.

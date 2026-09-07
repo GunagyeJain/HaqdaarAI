@@ -135,9 +135,18 @@ describe.skipIf(!hasLiveKey)('live: the configured model against the golden set'
     const failures: string[] = [];
 
     for (const testCase of goldenSet) {
+      // Paced to the free tier's 8000 tokens/minute. Each call costs roughly
+      // 1600 tokens, so ~5 per minute is the ceiling; an unpaced loop reports a
+      // rate limit as if it were a model failure, and the bounded retry gets
+      // consumed by throttling rather than by the glitch it exists for.
+      await new Promise((resolve) => setTimeout(resolve, 13_000));
+
       const result = await extractProfile(groqLlm, testCase.transcript, testCase.locale);
       expectedTotal += fieldsOf(testCase.expected).length;
-      if (!result.ok) continue;
+      if (!result.ok) {
+        failures.push(`${testCase.id}: ${result.error.slice(0, 90)}`);
+        continue;
+      }
 
       const supported = new Set(fieldsOf(testCase.expected));
       for (const field of fieldsOf(result.profile)) {
@@ -157,7 +166,7 @@ describe.skipIf(!hasLiveKey)('live: the configured model against the golden set'
 
     // Hallucination blocks; recall is reported because a missed field is safe.
     expect(invented).toBe(0);
-  }, 300_000);
+  }, 900_000);
 });
 
 describe.skipIf(hasLiveKey)('live evaluation', () => {

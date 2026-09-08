@@ -30,6 +30,16 @@
   --color-surface-raised: oklch(0.995 0.005 85);
   --color-surface-sunken: oklch(0.938 0.018 80);
 
+  /* A control that is chosen but carries no answer -- "Not answered", which is
+     the default on every field and so the state most often on screen.
+
+     It differentiates AWAY FROM THE GROUND, and the direction flips with the
+     theme because the headroom does. On cream there is almost no room above the
+     page, so chosen reads as inset. On a near-black ground inset is a hole: the
+     old value sat at lab L 1.63 beneath a 3.35 page and 7.76 neighbours, so
+     choosing it made it disappear. Dark therefore lifts instead. */
+  --color-surface-selected: oklch(0.938 0.018 80);
+
   --color-ink: oklch(0.24 0.018 55);
   --color-ink-muted: oklch(0.455 0.02 60);
   --color-border: oklch(0.865 0.016 78);
@@ -98,6 +108,8 @@
     --color-surface: oklch(0.155 0.008 58);
     --color-surface-raised: oklch(0.205 0.011 60);
     --color-surface-sunken: oklch(0.122 0.006 58);
+    /* Lifted, not sunken -- see the light-mode note. */
+    --color-surface-selected: oklch(0.26 0.012 62);
 
     --color-ink: oklch(0.955 0.008 85);
     --color-ink-muted: oklch(0.745 0.014 80);
@@ -129,6 +141,8 @@
   --color-surface: oklch(0.155 0.008 58);
   --color-surface-raised: oklch(0.205 0.011 60);
   --color-surface-sunken: oklch(0.122 0.006 58);
+  /* Lifted, not sunken -- see the light-mode note. */
+  --color-surface-selected: oklch(0.26 0.012 62);
 
   --color-ink: oklch(0.955 0.008 85);
   --color-ink-muted: oklch(0.745 0.014 80);

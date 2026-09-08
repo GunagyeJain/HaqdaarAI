@@ -99,4 +99,61 @@ test.describe('theme switch', () => {
     const early = await page.evaluate(() => document.documentElement.dataset.theme ?? null);
     expect(early).toBe('dark');
   });
+  test('a chosen "not answered" does not recede into the page in dark mode', async ({ page }) => {
+    /**
+     * "Not answered" is the default for every field, so it is the state a
+     * citizen sees most often, and it has to look chosen when it is chosen.
+     *
+     * In dark mode it did not. The chip filled with surface-sunken, which on the
+     * dark palette is darker than the chips beside it AND darker than the page
+     * ground -- measured at lab L 1.63 against a 3.35 ground and 7.76
+     * neighbours. It read as a hole rather than as a selection. The inset
+     * metaphor says "pressed" on a light ground and inverts on a dark one, which
+     * is the general lesson and the reason this is measured rather than eyeballed.
+     *
+     * Motion is disabled and all three colours are read in ONE evaluate. Both
+     * matter: the chips carry a 150ms colour transition, so reading them one
+     * after another during it returns values from different moments and the
+     * later read is spuriously darker. That race made an earlier version of this
+     * test pass against the broken code.
+     */
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.goto('/en');
+    await page.getByRole('button', { name: 'Switch to dark mode' }).click();
+
+    const group = page.getByRole('group', {
+      name: 'Do you hold a Below Poverty Line (BPL) card?',
+    });
+    await expect(group.getByRole('button', { name: 'Not answered' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+
+    const lightness = await page.evaluate(() => {
+      const read = (element: Element) => {
+        const background = getComputedStyle(element).backgroundColor;
+        const lab = /^lab\(([\d.]+)/.exec(background);
+        const oklab = /^oklab\(([\d.]+)/.exec(background);
+        const rgb = /^rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(background);
+
+        if (lab) return Number(lab[1]);
+        if (oklab) return Number(oklab[1]) * 100;
+        if (rgb) {
+          return (Number(rgb[1]) * 0.299 + Number(rgb[2]) * 0.587 + Number(rgb[3]) * 0.114) / 2.55;
+        }
+        return Number.NaN;
+      };
+
+      const container = document.querySelector('[role="group"][aria-label*="Below Poverty"]')!;
+      const buttons = Array.from(container.querySelectorAll('button'));
+      const chosen = buttons.find((button) => button.getAttribute('aria-pressed') === 'true')!;
+      const other = buttons.find((button) => button.getAttribute('aria-pressed') === 'false')!;
+
+      return { chosen: read(chosen), other: read(other), ground: read(document.body) };
+    });
+
+    // A selection must sit above the page, not below it.
+    expect(lightness.chosen).toBeGreaterThan(lightness.ground);
+    expect(lightness.chosen).toBeGreaterThan(lightness.other);
+  });
 });

@@ -186,10 +186,15 @@ export function BooleanField({
                   // still plainly selectable and plainly selected. It is just not
                   // celebrated. The accent is reserved for what the citizen told
                   // us.
+
+                  // The fill is a token rather than surface-sunken because the
+                  // direction has to flip with the theme. Inset reads as chosen on
+                  // cream; on a near-black ground it is a hole, and this chip sat
+                  // BENEATH the page it was drawn on until it was measured.
                   selected && choice.key !== 'unset'
                     ? 'border-[var(--color-brand)] bg-[var(--color-brand)] font-semibold text-[var(--color-brand-on)]'
                     : selected
-                      ? 'border-[var(--color-border-strong)] bg-[var(--color-surface-sunken)] font-medium'
+                      ? 'border-[var(--color-border-strong)] bg-[var(--color-surface-selected)] font-semibold'
                       : 'border-[var(--color-border)] bg-[var(--color-surface-raised)] hover:border-[var(--color-border-strong)]'
                 )
               }

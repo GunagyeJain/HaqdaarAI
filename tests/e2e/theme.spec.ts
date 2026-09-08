@@ -62,6 +62,10 @@ test.describe('theme switch', () => {
   test('an explicit dark choice still wins on a device set to light', async ({ browser }) => {
     const context = await browser.newContext({ colorScheme: 'light' });
     const page = await context.newPage();
+    // Motion off: the ground now carries a 150ms colour transition, so reading
+    // its lightness straight after a click samples the fade rather than the
+    // result.
+    await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.goto('/en');
 
     await page.getByRole('button', { name: 'Switch to dark mode' }).click();
@@ -97,6 +101,10 @@ test.describe('theme switch', () => {
      */
     const context = await browser.newContext({ colorScheme: 'dark' });
     const page = await context.newPage();
+    // Motion off: the ground now carries a 150ms colour transition, so reading
+    // its lightness straight after a click samples the fade rather than the
+    // result.
+    await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.goto('/en');
 
     await page.getByRole('button', { name: 'Switch to dark mode' }).click();
@@ -223,4 +231,48 @@ test.describe('theme switch', () => {
     await context.close();
   });
 
+  test('the page ground changes theme on the same timing as its controls', async ({ page }) => {
+    /**
+     * Reported from use: the inputs and result cards appeared to change colour
+     * before the background did.
+     *
+     * They did. Controls carry `transition-colors` at Tailwind's 150ms while
+     * body had no transition at all, so the ground snapped and everything
+     * standing on it faded in afterwards.
+     *
+     * The comparison is against a control KNOWN to transition, and that it
+     * transitions is asserted first. An earlier version compared body against
+     * `document.querySelector('select, input')`, which matched the locale
+     * switcher -- a control with no transition -- so it compared 0s to 0s and
+     * passed against the broken page.
+     */
+    await page.goto('/en');
+
+    const timings = await page.evaluate(() => {
+      const chip = document.querySelector('[role="group"] button');
+      return {
+        ground: getComputedStyle(document.body).transitionDuration,
+        control: chip ? getComputedStyle(chip).transitionDuration : 'missing',
+      };
+    });
+
+    expect(Number.parseFloat(timings.control)).toBeGreaterThan(0);
+    expect(timings.ground).toBe(timings.control);
+  });
+
+  test('a stated preference for less motion still removes the transition', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.goto('/en');
+
+    const timings = await page.evaluate(() => {
+      const chip = document.querySelector('[role="group"] button');
+      return {
+        ground: getComputedStyle(document.body).transitionDuration,
+        control: chip ? getComputedStyle(chip).transitionDuration : 'missing',
+      };
+    });
+
+    expect(Number.parseFloat(timings.ground)).toBeLessThan(0.01);
+    expect(Number.parseFloat(timings.control)).toBeLessThan(0.01);
+  });
 });

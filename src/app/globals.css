@@ -154,6 +154,13 @@
     background-color: var(--color-surface);
     color: var(--color-ink);
     font-family: var(--font-sans);
+    /* Matches the 150ms Tailwind gives `transition-colors`, which every control
+       and card on the page carries. Without it the ground snapped while
+       everything standing on it faded, so the controls appeared to change
+       theme before the page did. The reduced-motion block below overrides both
+       together. */
+    transition-property: background-color, color;
+    transition-duration: 150ms;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
   }

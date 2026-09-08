@@ -30,9 +30,21 @@ DATABASE_URL="postgres://…" pnpm db:migrate
 Migrations include `match_schemes()` and its helpers, so this is what puts the
 matcher into the database — it is not applied by hand, ever.
 
-**2. Corpus.** The app is functional but empty until scraped. Either run
-`pnpm scrape` locally against the production `DATABASE_URL`, or trigger the
-**Refresh scheme corpus** workflow manually. Expect ~20 minutes.
+**2. Corpus.** The app is functional but empty until loaded. Three routes, fastest first:
+
+- **Copy the corpus you already have** (seconds). It is 10 MB and already verified:
+
+  ```bash
+  docker exec haqdaar-postgres pg_dump -U haqdaar -d haqdaar --data-only --table=schemes > corpus.sql
+  psql "$DATABASE_URL" -f corpus.sql
+  ```
+
+- **Trigger the Refresh scheme corpus workflow manually** (~20 min). Do this anyway at least
+  once — verifying the schedule fires is a sign-off requirement, not an optional check.
+- **Run `pnpm scrape` locally** against the production `DATABASE_URL` (~20 min).
+
+Seeding from the dump and *separately* dispatching the workflow is the recommended order: it
+gets the app working immediately and still proves the scheduled path end to end.
 
 **3. App.** Import the repo into Vercel. It needs `DATABASE_URL`; every AI key
 is optional, and the typed path works without them (invariant 2).
@@ -62,12 +74,51 @@ runs weekly and can be dispatched manually.
 **Deploying with no AI keys is a supported configuration, not a broken one.**
 It is the state the degradation suite runs in.
 
-**Rate limits.** Groq's free tier is 8000 tokens/minute, roughly five
-extractions. That is comfortable for real use — one call per voice turn — but it
-throttles the live evaluation suite, which is paced accordingly.
+**Provider budgets, measured 2026-09-08.** The two providers behave differently and the
+difference matters more than the raw numbers.
+
+| | Groq (extraction) | Sarvam (STT / TTS) |
+|---|---|---|
+| Free allowance | 200,000 tokens/day | ₹100 of credits |
+| Renews | **daily, forever** | **never** |
+| Measured cost | ~3,800–4,900 tokens per extraction | ₹30/hr audio, ₹30/10k chars |
+| Practical ceiling | **~40–50 extractions/day** | ~50 voice sessions total |
+
+An earlier version of this document claimed ~1,600 tokens per extraction and named the
+8,000/minute limit as the constraint. Both were wrong: the per-call cost is roughly three
+times higher and **the binding limit is the daily cap**. One full live evaluation pass
+consumes ~186,000 of the 200,000 daily tokens, so an eval run and a day of pilot sessions
+cannot share a day.
+
+Neither running out breaks the app. Groq exhausted disables voice input and leaves the typed
+form untouched; Sarvam exhausted falls back to browser speech, which is free and unlimited.
+That ladder is invariant 2 and the degradation suite covers it.
 
 ---
 
+---
+
+## Hosting free tiers, and the one that bites
+
+| | Free allowance | Relevant limit |
+|---|---|---|
+| Vercel Hobby | 100 GB transfer, 1M invocations, 4 CPU-hours/month | **10-second function timeout**; non-commercial only |
+| Neon | 0.5 GB storage/project, 100 CU-hours/month | Autosuspends when idle (adds cold-start latency) |
+
+The corpus is **10 MB**, so Neon storage is not a concern.
+
+**Set `PROVIDER_TIMEOUT_MS=3000` on Vercel.** This is the one real incompatibility. The
+default of 4000 gives the voice route 4s for STT plus 8s for extraction — up to **12
+seconds sequentially**, which exceeds the Hobby plan’s 10-second cap. Vercel would kill
+the request with a 504 *before* the app’s own fallback could run, turning a graceful
+degradation into a hard failure for the citizen. At 3000 the worst case is 3s + 6s = 9s and
+the app stays in control of its own failure. Typical extraction is ~1.1s, so this costs
+nothing in practice.
+
+This is exactly what "providers are config, not code" is for: an env var, not a code change.
+
+**Vercel Hobby is non-commercial only.** A course project qualifies. If Haqdaar is ever
+operated as a service, this is no longer the right plan.
 ## After deploying
 
 Re-run the §6 measurements against production. Managed hosting adds network

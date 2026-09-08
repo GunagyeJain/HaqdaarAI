@@ -11,6 +11,7 @@ import { hasLocale } from 'next-intl';
 import { setRequestLocale } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
+import { themeScript } from '@/components/theme-toggle';
 import { routing } from '@/i18n/routing';
 import '../globals.css';
 
@@ -117,7 +118,18 @@ export default async function LocaleLayout({
   const indic = locale in indicFonts ? indicFonts[locale as keyof typeof indicFonts] : undefined;
 
   return (
-    <html lang={locale} className={[latin.variable, indic?.variable].filter(Boolean).join(' ')}>
+    <html
+      lang={locale}
+      className={[latin.variable, indic?.variable].filter(Boolean).join(' ')}
+      // The pre-paint script sets data-theme, so the server markup and the
+      // first client render legitimately differ on this element.
+      suppressHydrationWarning
+    >
+      <head>
+        {/* Before first paint: a stored dark preference must not flash white
+            while React hydrates. */}
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+      </head>
       <body className="min-h-dvh antialiased">
         <NextIntlClientProvider>{children}</NextIntlClientProvider>
       </body>

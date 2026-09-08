@@ -3,7 +3,9 @@
     "name": "Haqdaar.ai",
     "tagline": "Find the government schemes you are entitled to",
     "languageLabel": "Language",
-    "disclaimer": "An independent academic project, not affiliated with any government body. Always confirm eligibility with the official scheme authority before applying."
+    "disclaimer": "An independent academic project, not affiliated with any government body. Always confirm eligibility with the official scheme authority before applying.",
+    "themeToDark": "Switch to dark mode",
+    "themeToLight": "Switch to light mode"
   },
   "home": {
     "title": "Know what you are entitled to",

@@ -34,30 +34,44 @@ const clauseKey = (clause: LeafClause) => `${clause.field}:${clause.op}`;
 
 const idByRuleName = new Map<string, string>();
 
+/**
+ * One statement, not one per fixture.
+ *
+ * The original inserted each rule case in its own round trip. Against a local
+ * Postgres that is instant; against Neon from a GitHub runner it is a network
+ * hop apiece, and the scheduled scrape job failed on exactly this — "Hook
+ * timed out in 10000ms", after a scrape that had in fact worked perfectly.
+ *
+ * A weekly job that cries wolf is worse than no job, because the week it has
+ * something real to say, nobody looks.
+ */
 beforeAll(async () => {
   await db.delete(schema.schemes).where(sql`slug like ${SLUG_PREFIX + '%'}`);
 
-  for (const { name, rule } of ruleCases) {
-    const [row] = await db
-      .insert(schema.schemes)
-      .values({
+  const rows = await db
+    .insert(schema.schemes)
+    .values(
+      ruleCases.map(({ name, rule }) => ({
         slug: `${SLUG_PREFIX}${name}`,
         name: { en: name },
         summary: { en: `Differential fixture: ${name}` },
         eligibility: rule as unknown as { op: string },
         sourceProse: `Fixture rule for ${name}.`,
         sourceUrl: 'https://www.myscheme.gov.in/',
-      })
-      .returning();
+      })),
+    )
+    .returning({ id: schema.schemes.id, slug: schema.schemes.slug });
 
-    if (row) idByRuleName.set(name, row.id);
+  for (const row of rows) {
+    idByRuleName.set(row.slug.slice(SLUG_PREFIX.length), row.id);
   }
-});
+  // Generous even so: this suite runs against a remote database in CI.
+}, 60_000);
 
 afterAll(async () => {
   await db.delete(schema.schemes).where(sql`slug like ${SLUG_PREFIX + '%'}`);
   await db.$client.end({ timeout: 5 });
-});
+}, 60_000);
 
 async function matchInSql(profile: object): Promise<Map<string, MatchRow>> {
   const rows = await db.execute<MatchRow>(

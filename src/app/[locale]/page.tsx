@@ -2,6 +2,7 @@ import { useTranslations } from 'next-intl';
 import { setRequestLocale } from 'next-intl/server';
 import { LocaleSwitcher } from '@/components/locale-switcher';
 import { ProfileForm } from '@/components/profile-form';
+import { ThemeToggle } from '@/components/theme-toggle';
 import { ResultsPanel } from '@/components/results-panel';
 import { VoiceConsole } from '@/components/voice-console';
 import { ProfileProvider } from '@/lib/profile-state';
@@ -65,7 +66,10 @@ function Home() {
             <Mark />
             <span className="text-[1.05rem] font-bold tracking-tight">{tApp('name')}</span>
           </span>
-          <LocaleSwitcher />
+          <span className="flex items-center gap-2">
+            <LocaleSwitcher />
+            <ThemeToggle />
+          </span>
         </header>
 
         {/* Calm, but not so airy that the form is pushed off the first screen.

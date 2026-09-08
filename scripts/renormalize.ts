@@ -3,6 +3,7 @@ import { config as loadEnv } from 'dotenv';
 import { getDb, schema } from '../src/db';
 import { synthesizeRuleTree } from '../src/domain/corpus/clauses';
 import { groundRuleTree } from '../src/domain/corpus/grounding';
+import { canonicalJson } from '../src/domain/rules/canonical';
 import type { RuleNode } from '../src/domain/rules/types';
 
 loadEnv({ path: '.env.local', quiet: true });
@@ -54,8 +55,8 @@ async function main(): Promise<void> {
     const grounded = groundRuleTree(combined, row.sourceProse);
     clausesAfter += countLeaves(grounded.tree);
 
-    const nextJson = JSON.stringify(grounded.tree);
-    if (nextJson === JSON.stringify(before)) continue;
+    const nextJson = canonicalJson(grounded.tree);
+    if (nextJson === canonicalJson(before)) continue;
 
     await db
       .update(schema.schemes)

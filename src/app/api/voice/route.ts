@@ -1,3 +1,5 @@
+import { budgetLimits, postgresBudgetStore } from '@/db/budget-store';
+import { consumeBudget } from '@/domain/providers/budget';
 import { extractProfile } from '@/domain/providers/extraction';
 import {
   PROVIDER_TIMEOUT_MS,
@@ -59,6 +61,19 @@ export async function POST(request: Request) {
       const audio = await request.arrayBuffer();
       if (audio.byteLength === 0) {
         return Response.json({ error: 'empty audio' }, { status: 400 });
+      }
+
+      // The daily spend cap. Sarvam credits never renew, so an unbounded
+      // endpoint on a public URL is an unbounded bill. Exceeding it raises
+      // the same error an unreachable provider raises, so the client takes
+      // the fallback ladder that the degradation suite already covers
+      // rather than a new path that nothing tests.
+      const allowance = await consumeBudget(postgresBudgetStore, 'voice', budgetLimits().voice);
+      if (!allowance.ok) {
+        throw new ProviderUnavailableError(
+          'stt',
+          `daily speech-to-text limit reached (${allowance.limit})`,
+        );
       }
 
       const stt = getSttProvider();

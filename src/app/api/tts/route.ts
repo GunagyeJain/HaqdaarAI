@@ -1,5 +1,7 @@
+import { budgetLimits, postgresBudgetStore } from '@/db/budget-store';
+import { consumeBudget } from '@/domain/providers/budget';
 import { PROVIDER_TIMEOUT_MS, getTtsProvider } from '@/domain/providers/registry';
-import { withTimeout } from '@/domain/providers/resilience';
+import { ProviderUnavailableError, withTimeout } from '@/domain/providers/resilience';
 import { routing, type Locale } from '@/i18n/routing';
 
 export const dynamic = 'force-dynamic';
@@ -29,6 +31,16 @@ export async function POST(request: Request) {
     : routing.defaultLocale;
 
   try {
+    // Daily spend cap — see src/domain/providers/budget.ts. Synthesis is the
+    // more expensive of the two Sarvam calls per unit, so it is capped lower.
+    const allowance = await consumeBudget(postgresBudgetStore, 'tts', budgetLimits().tts);
+    if (!allowance.ok) {
+      throw new ProviderUnavailableError(
+        'tts',
+        `daily speech limit reached (${allowance.limit})`,
+      );
+    }
+
     const tts = getTtsProvider();
     const { audio, mimeType } = await withTimeout(
       tts.synthesize(body.text, locale),

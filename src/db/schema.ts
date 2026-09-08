@@ -1,4 +1,15 @@
-import { boolean, index, jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import {
+  boolean,
+  date,
+  index,
+  integer,
+  jsonb,
+  pgTable,
+  primaryKey,
+  text,
+  timestamp,
+  uuid,
+} from 'drizzle-orm/pg-core';
 
 /**
  * Placeholder rule-tree type. Phase 1 replaces this with the real discriminated
@@ -51,3 +62,28 @@ export const schemes = pgTable(
 
 export type Scheme = typeof schemes.$inferSelect;
 export type NewScheme = typeof schemes.$inferInsert;
+
+/**
+ * Daily call counters for the paid speech providers.
+ *
+ * Sarvam credits are granted once and never renew, and the app is on a public
+ * URL, so an unbounded voice endpoint is an unbounded bill.
+ *
+ * INVARIANT 5 IS NOT WEAKENED BY THIS TABLE. There is no IP, no fingerprint and
+ * no session key here — three integers a day for the entire application, and
+ * nothing that could identify or be joined back to a person. A per-visitor
+ * limit would be fairer and is deliberately not built: it would require
+ * identifying visitors, which is the property this project gives up money to
+ * keep. See src/domain/providers/budget.ts.
+ */
+export const usageCounters = pgTable(
+  'usage_counters',
+  {
+    day: date('day').notNull(),
+    kind: text('kind').notNull(),
+    calls: integer('calls').notNull().default(0),
+  },
+  (table) => [primaryKey({ columns: [table.day, table.kind] })],
+);
+
+export type UsageCounter = typeof usageCounters.$inferSelect;

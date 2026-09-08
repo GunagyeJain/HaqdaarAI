@@ -209,6 +209,22 @@ export function BooleanField({
 }
 
 /**
+ * Sane limits per numeric field.
+ *
+ * These lived inline on the old flat form and would have been silently dropped
+ * when it became a loop over steps. They belong beside the control anyway, so
+ * the voice confirmation gate gets them too -- it shares this component, which
+ * is what makes invariant 3 literally true rather than approximately true.
+ */
+const FIELD_BOUNDS: Partial<Record<ProfileField, { min?: number; max?: number }>> = {
+  age: { min: 0, max: 120 },
+  familySize: { min: 1, max: 50 },
+  annualIncome: { min: 0 },
+  landHoldingHectares: { min: 0 },
+  disabilityPercentage: { min: 0, max: 100 },
+};
+
+/**
  * Renders the correct control for any profile field.
  *
  * Shared by the typed form and the voice confirmation gate, so invariant 3 —
@@ -280,11 +296,14 @@ export function ProfileFieldControl({
   }
 
   if (FIELD_KINDS[field] === 'number') {
+    const bounds = FIELD_BOUNDS[field];
     return (
       <NumberField
         field={field}
         label={label}
         value={typeof value === 'number' ? value : undefined}
+        min={bounds?.min}
+        max={bounds?.max}
         highlighted={highlighted}
         onChange={onChange}
       />

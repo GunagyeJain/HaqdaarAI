@@ -1,37 +1,38 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import {
-  CATEGORIES,
-  EDUCATION_LEVELS,
-  GENDERS,
-  MARITAL_STATUSES,
-  OCCUPATIONS,
-  RESIDENCES,
-  STATE_CODES,
-  type Category,
-  type Education,
-  type Gender,
-  type MaritalStatus,
-  type Occupation,
-  type Residence,
-  type StateCode,
-} from '@/domain/rules/types';
+import { useSearchParams } from 'next/navigation';
+import type { ProfileField } from '@/domain/rules/types';
 import { useRouter } from '@/i18n/navigation';
 import { useProfile } from '@/lib/profile-state';
-import { STATE_LABELS } from '@/lib/state-labels';
-import { BooleanField, NumberField, SelectField } from './fields';
+import { ProfileFieldControl } from './fields';
+import { clampStep, FORM_STEPS, TOTAL_STEPS } from './form-steps';
 
 /**
- * The typed profile form.
+ * The typed profile form, in five steps.
  *
  * INVARIANT 2: this is the whole product. It works with every AI provider
- * switched off; voice is layered on top of it in Phase 4 and writes into the
- * same state.
+ * switched off; voice is layered on top and writes into the same state.
+ *
+ * Sixteen fields in a flat wall is what this replaces. For a reader who does
+ * not read confidently that was a page to abandon: no grouping, no sense of
+ * progress, and no indication that leaving something blank was allowed.
+ *
+ * Three things carry the weight here, and none of them is decoration:
+ *
+ *   - Every field says WHY it is being asked, because "Land you farm
+ *     (hectares)" tells someone what to type and not why anyone wants it.
+ *   - Every step repeats that a blank is fine. It is literally true -- a blank
+ *     produces UNKNOWN and can never produce FAIL (invariant 6) -- and it is
+ *     the single most important sentence on the form.
+ *   - The step lives in the URL, so the phone's back button moves between steps
+ *     instead of leaving the site. No profile value ever goes there.
  */
 export function ProfileForm() {
   const t = useTranslations('profile');
   const router = useRouter();
+  const searchParams = useSearchParams();
+
   const {
     profile,
     setField,
@@ -44,22 +45,34 @@ export function ProfileForm() {
     answeredCount,
   } = useProfile();
 
-  const set = <K extends keyof typeof profile>(field: K) =>
-    (value: (typeof profile)[K] | undefined) => {
-      if (value === undefined) clearField(field);
-      else setField(field, value);
-    };
+  // next-intl types message keys as literals; step and field keys are built at
+  // runtime, so the lookup is widened here rather than duplicating every key.
+  const label = t as unknown as (
+    key: string,
+    values?: Record<string, string | number>,
+  ) => string;
 
-  // next-intl types message keys as literals; enum option keys are built at
-  // runtime from the domain enums, so the lookup is widened here rather than
-  // duplicating every option key as a literal union.
-  const label = t as unknown as (key: string) => string;
+  const step = clampStep(searchParams.get('step'));
+  const current = FORM_STEPS[step - 1]!;
+  const isLastStep = step === TOTAL_STEPS;
 
-  const options = <T extends string>(values: readonly T[], group: string) =>
-    values.map((value) => ({
-      value,
-      label: label(`option.${group}.${value}`),
-    }));
+  /**
+   * Asking someone who has just said they are not disabled what percentage
+   * their disability is erodes trust, particularly in a session that also asks
+   * about caste and income. Same rule as selectNextQuestion.
+   */
+  const visibleFields = current.fields.filter(
+    (field) => field !== 'disabilityPercentage' || profile.isDisabled === true,
+  );
+
+  const change = (field: ProfileField) => (value: unknown) => {
+    if (value === undefined) clearField(field);
+    else setField(field, value as never);
+  };
+
+  const goToStep = (next: number) => {
+    router.push(`/?step=${next}`);
+  };
 
   return (
     <form
@@ -73,179 +86,104 @@ export function ProfileForm() {
         });
       }}
     >
-      <div className="mb-3">
-        <h2 className="text-xl font-bold tracking-tight">{t('heading')}</h2>
+      <div className="mb-4">
+        <p className="text-sm font-medium text-[var(--color-ink-muted)]">
+          {label('stepCounter', { step, total: TOTAL_STEPS })}
+        </p>
+
+        <span
+          aria-hidden="true"
+          className="mt-2 block h-1.5 w-full overflow-hidden rounded-full bg-[var(--color-surface-sunken)]"
+        >
+          <span
+            className="block h-full rounded-full bg-[var(--color-brand)] transition-[width]"
+            style={{ width: `${(step / TOTAL_STEPS) * 100}%` }}
+          />
+        </span>
+
+        <h2 className="mt-4 text-2xl font-bold tracking-tight">
+          {label(`step.${current.id}.title`)}
+        </h2>
         <p className="mt-1.5 text-[0.95rem] leading-relaxed text-[var(--color-ink-muted)]">
-          {t('intro')}
+          {label(`step.${current.id}.help`)}
         </p>
       </div>
 
-      <div className="grid gap-1.5 sm:grid-cols-2">
-        <NumberField
-          field="age"
-          label={t('field.age')}
-          value={profile.age}
-          min={0}
-          max={120}
-          highlighted={highlightedField === 'age'}
-          onChange={set('age')}
-        />
-        <SelectField
-          field="state"
-          label={t('field.state')}
-          value={profile.state}
-          highlighted={highlightedField === 'state'}
-          options={STATE_CODES.map((code) => ({ value: code, label: STATE_LABELS[code] }))}
-          onChange={(value) => set('state')(value as StateCode | undefined)}
-        />
-        <SelectField
-          field="gender"
-          label={t('field.gender')}
-          value={profile.gender}
-          highlighted={highlightedField === 'gender'}
-          options={options(GENDERS, 'gender')}
-          onChange={(value) => set('gender')(value as Gender | undefined)}
-        />
-        <SelectField
-          field="residence"
-          label={t('field.residence')}
-          value={profile.residence}
-          highlighted={highlightedField === 'residence'}
-          options={options(RESIDENCES, 'residence')}
-          onChange={(value) => set('residence')(value as Residence | undefined)}
-        />
-        <SelectField
-          field="occupation"
-          label={t('field.occupation')}
-          value={profile.occupation}
-          highlighted={highlightedField === 'occupation'}
-          options={options(OCCUPATIONS, 'occupation')}
-          onChange={(value) => set('occupation')(value as Occupation | undefined)}
-        />
-        <SelectField
-          field="education"
-          label={t('field.education')}
-          value={profile.education}
-          highlighted={highlightedField === 'education'}
-          options={options(EDUCATION_LEVELS, 'education')}
-          onChange={(value) => set('education')(value as Education | undefined)}
-        />
-        <SelectField
-          field="maritalStatus"
-          label={t('field.maritalStatus')}
-          value={profile.maritalStatus}
-          highlighted={highlightedField === 'maritalStatus'}
-          options={options(MARITAL_STATUSES, 'maritalStatus')}
-          onChange={(value) => set('maritalStatus')(value as MaritalStatus | undefined)}
-        />
-        <NumberField
-          field="familySize"
-          label={t('field.familySize')}
-          value={profile.familySize}
-          min={1}
-          max={50}
-          highlighted={highlightedField === 'familySize'}
-          onChange={set('familySize')}
-        />
-        <NumberField
-          field="landHoldingHectares"
-          label={t('field.landHoldingHectares')}
-          value={profile.landHoldingHectares}
-          min={0}
-          highlighted={highlightedField === 'landHoldingHectares'}
-          onChange={set('landHoldingHectares')}
-        />
-        <NumberField
-          field="annualIncome"
-          label={t('field.annualIncome')}
-          value={profile.annualIncome}
-          min={0}
-          highlighted={highlightedField === 'annualIncome'}
-          onChange={set('annualIncome')}
-        />
-        <SelectField
-          field="category"
-          label={t('field.category')}
-          value={profile.category}
-          highlighted={highlightedField === 'category'}
-          options={options(CATEGORIES, 'category')}
-          onChange={(value) => set('category')(value as Category | undefined)}
-        />
+      <div className="flex flex-col gap-4">
+        {visibleFields.map((field) => (
+          <div key={field}>
+            <ProfileFieldControl
+              field={field}
+              value={profile[field]}
+              highlighted={highlightedField === field}
+              onChange={change(field)}
+            />
+            <p className="mt-1 px-3 text-sm leading-relaxed text-[var(--color-ink-muted)]">
+              {label(`why.${field}`)}
+            </p>
+          </div>
+        ))}
       </div>
 
-      <BooleanField
-        field="isBPL"
-        label={t('field.isBPL')}
-        value={profile.isBPL}
-        highlighted={highlightedField === 'isBPL'}
-        onChange={set('isBPL')}
-      />
-      <BooleanField
-        field="isMinority"
-        label={t('field.isMinority')}
-        value={profile.isMinority}
-        highlighted={highlightedField === 'isMinority'}
-        onChange={set('isMinority')}
-      />
-      <BooleanField
-        field="isDisabled"
-        label={t('field.isDisabled')}
-        value={profile.isDisabled}
-        highlighted={highlightedField === 'isDisabled'}
-        onChange={set('isDisabled')}
-      />
-
-      {/* Only meaningful once disability is confirmed — see selectNextQuestion. */}
-      {profile.isDisabled === true && (
-        <NumberField
-          field="disabilityPercentage"
-          label={t('field.disabilityPercentage')}
-          value={profile.disabilityPercentage}
-          min={0}
-          max={100}
-          highlighted={highlightedField === 'disabilityPercentage'}
-          onChange={set('disabilityPercentage')}
-        />
-      )}
+      <p className="mt-5 rounded-xl bg-[var(--color-brand-tint)] px-3.5 py-2.5 text-[0.85rem] leading-snug sm:text-sm">
+        {label('blankIsFine')}
+      </p>
 
       {error && (
-        <p role="alert" className="mt-2 rounded-lg bg-[var(--color-fail)]/10 px-3 py-2 text-sm text-[var(--color-fail-text)]">
+        <p
+          role="alert"
+          className="mt-2 rounded-lg bg-[var(--color-fail)]/10 px-3 py-2 text-sm text-[var(--color-fail-text)]"
+        >
           {error}
         </p>
       )}
 
-      {/* The bar floats over the fields as they scroll past. Previously it was
-          an opaque block with a hard rule across the top, which sliced whichever
-          field happened to be behind it clean in half. The gradient above it
-          says "there is more underneath" instead of pretending there is not. */}
+      {/* The bar floats over the fields as they scroll past. The gradient above
+          it says "there is more underneath" rather than slicing whichever field
+          happens to be behind it clean in half. */}
       <div className="pointer-events-none sticky bottom-0 -mt-2 h-6 bg-gradient-to-b from-transparent to-[var(--color-surface)]" />
       <div className="sticky bottom-0 flex flex-wrap items-center gap-3 bg-[var(--color-surface)] pb-3 pt-1">
-        <button
-          type="submit"
-          disabled={isMatching}
-          className="min-h-12 flex-1 rounded-xl bg-[var(--color-brand)] px-5 text-base font-semibold text-[var(--color-brand-on)] disabled:opacity-60"
-        >
-          {isMatching ? t('submitting') : t('submit')}
-        </button>
-        <button
-          type="button"
-          onClick={reset}
-          className="min-h-12 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-raised)] px-4 text-base transition-colors hover:border-[var(--color-border-strong)]"
-        >
-          {t('reset')}
-        </button>
+        {step > 1 && (
+          <button
+            type="button"
+            onClick={() => goToStep(step - 1)}
+            className="min-h-12 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-raised)] px-5 text-base transition-colors hover:border-[var(--color-border-strong)]"
+          >
+            {label('back')}
+          </button>
+        )}
+
+        {isLastStep ? (
+          <button
+            type="submit"
+            disabled={isMatching}
+            className="min-h-12 flex-1 rounded-xl bg-[var(--color-brand)] px-5 text-base font-semibold text-[var(--color-brand-on)] disabled:opacity-60"
+          >
+            {isMatching ? t('submitting') : t('submit')}
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => goToStep(step + 1)}
+            className="min-h-12 flex-1 rounded-xl bg-[var(--color-brand)] px-5 text-base font-semibold text-[var(--color-brand-on)]"
+          >
+            {label('next')}
+          </button>
+        )}
+
+        {isLastStep && (
+          <button
+            type="button"
+            onClick={reset}
+            className="min-h-12 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-raised)] px-4 text-base transition-colors hover:border-[var(--color-border-strong)]"
+          >
+            {t('reset')}
+          </button>
+        )}
+
         {/* Progress, shown as something filling up rather than a bare count.
             Every field is optional, so this is encouragement, not a demand. */}
-        <span className="flex w-full items-center gap-2.5 text-xs text-[var(--color-ink-muted)]">
-          <span
-            aria-hidden="true"
-            className="h-1.5 w-full max-w-28 overflow-hidden rounded-full bg-[var(--color-surface-sunken)]"
-          >
-            <span
-              className="block h-full rounded-full bg-[var(--color-brand)] transition-[width]"
-              style={{ width: `${(answeredCount / 16) * 100}%` }}
-            />
-          </span>
+        <span className="w-full text-xs text-[var(--color-ink-muted)]">
           {t('answered', { count: answeredCount, total: 16 })}
         </span>
       </div>

@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
+import { completeForm } from './support/form';
 
 /**
  * ACCESSIBILITY.
@@ -34,10 +35,7 @@ test.describe('WCAG 2.1 AA', () => {
   test('the results view has no violations', async ({ page }) => {
     // Result cards carry the verdict colours and the most complex markup, so
     // they are scanned in their real populated state rather than empty.
-    await page.goto('/en');
-    await page.locator('#input-age').fill('42');
-    await page.locator('#input-state').selectOption('PB');
-    await page.getByRole('button', { name: 'Find my schemes' }).click();
+    await completeForm(page, { age: '42', state: 'PB' });
     await expect(page.getByRole('heading', { name: 'What we found' })).toBeVisible({
       timeout: 20_000,
     });
@@ -47,10 +45,7 @@ test.describe('WCAG 2.1 AA', () => {
   });
 
   test('the failed-schemes section has no violations when expanded', async ({ page }) => {
-    await page.goto('/en');
-    await page.locator('#input-age').fill('42');
-    await page.locator('#input-state').selectOption('PB');
-    await page.getByRole('button', { name: 'Find my schemes' }).click();
+    await completeForm(page, { age: '42', state: 'PB' });
     await expect(page.getByRole('heading', { name: 'What we found' })).toBeVisible({
       timeout: 20_000,
     });
@@ -62,26 +57,34 @@ test.describe('WCAG 2.1 AA', () => {
 });
 
 test.describe('usable without a mouse', () => {
-  test('every control is reachable by keyboard', async ({ page }) => {
-    await page.goto('/en');
-
-    // Tab through the form and confirm focus actually lands on the controls
-    // rather than being trapped or skipped.
+  const tabAround = async (page: Page) => {
     const reached = new Set<string>();
-    for (let step = 0; step < 40; step += 1) {
+    for (let press = 0; press < 40; press += 1) {
       await page.keyboard.press('Tab');
       const id = await page.evaluate(() => document.activeElement?.id ?? '');
       if (id) reached.add(id);
     }
+    return reached;
+  };
 
-    expect(reached).toContain('input-age');
-    expect(reached).toContain('input-state');
-    expect(reached).toContain('locale-switcher');
+  test('every control is reachable by keyboard', async ({ page }) => {
+    // Checked on two steps rather than one: the fields live on different steps
+    // now, so tabbing a single screen would silently stop proving anything
+    // about the rest of the form.
+    await page.goto('/en');
+    const onFirstStep = await tabAround(page);
+
+    expect(onFirstStep).toContain('input-age');
+    expect(onFirstStep).toContain('locale-switcher');
+
+    await page.goto('/en?step=2');
+    const onSecondStep = await tabAround(page);
+
+    expect(onSecondStep).toContain('input-state');
   });
 
   test('the submit button can be operated from the keyboard', async ({ page }) => {
-    await page.goto('/en');
-    await page.locator('#input-age').fill('30');
+    await page.goto('/en?step=5');
     await page.getByRole('button', { name: 'Find my schemes' }).focus();
     await page.keyboard.press('Enter');
 
@@ -124,10 +127,7 @@ test.describe('touch targets', () => {
 test.describe('verdict colour is never the only signal', () => {
   test('each result card states its verdict in words', async ({ page }) => {
     // Colour-blind users, and anyone in sunlight, must get the same answer.
-    await page.goto('/en');
-    await page.locator('#input-age').fill('42');
-    await page.locator('#input-state').selectOption('PB');
-    await page.getByRole('button', { name: 'Find my schemes' }).click();
+    await completeForm(page, { age: '42', state: 'PB' });
     await expect(page.getByRole('heading', { name: 'What we found' })).toBeVisible({
       timeout: 20_000,
     });

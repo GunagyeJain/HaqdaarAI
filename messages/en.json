@@ -16,6 +16,35 @@
     "notice": "Nothing you enter is saved. Your answers stay in this browser and are never stored."
   },
   "profile": {
+    "why": {
+      "age": "Many schemes have an age range.",
+      "gender": "Some schemes are only for women, or for transgender applicants.",
+      "maritalStatus": "Some schemes are for widows, or for unmarried women.",
+      "state": "Most schemes are run by one state.",
+      "district": "A few schemes are only for particular districts.",
+      "residence": "Some schemes are only for villages, others only for towns.",
+      "occupation": "Schemes exist for farmers, weavers, fishermen and others.",
+      "education": "Scholarships depend on what you are studying.",
+      "familySize": "A few schemes depend on how many people live with you.",
+      "annualIncome": "Many schemes have an income limit. If you are unsure, leave it blank.",
+      "isBPL": "A BPL card opens a number of schemes.",
+      "landHoldingHectares": "Some schemes are only for people farming under a certain amount of land.",
+      "category": "Some schemes are reserved for particular categories.",
+      "isMinority": "Some scholarships are for minority communities.",
+      "isDisabled": "Several schemes exist specifically for disabled people.",
+      "disabilityPercentage": "Some schemes need a certificate above a certain percentage."
+    },
+    "next": "Next",
+    "back": "Back",
+    "stepCounter": "Step {step} of {total}",
+    "blankIsFine": "Not sure? Leave it blank. We will never say no because of a blank.",
+    "step": {
+      "about": { "title": "About you", "help": "We start with the easy ones." },
+      "where": { "title": "Where you live", "help": "This decides which state's schemes you can apply for." },
+      "work": { "title": "Work and study", "help": "Many schemes are for particular kinds of work, or for students." },
+      "household": { "title": "Your household", "help": "Some schemes have a limit on income or land. Leave anything blank if you are not sure." },
+      "more": { "title": "What else applies to you", "help": "These questions open up extra schemes made for particular groups. They are never used to rule you out, and we do not keep them." }
+    },
     "heading": "About you",
     "intro": "Every question is optional. The more you answer, the more we can tell you.",
     "submit": "Find my schemes",

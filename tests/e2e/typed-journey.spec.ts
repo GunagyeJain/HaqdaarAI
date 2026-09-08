@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { completeForm } from './support/form';
 
 /**
  * THE MVP GATE (proposal §9.1).
@@ -6,25 +7,18 @@ import { expect, test } from '@playwright/test';
  * A citizen completes a profile by typing alone and receives an explained
  * match. This runs against the real scraped corpus and touches no AI provider,
  * which is what makes invariant 2 an executable claim rather than a promise.
+ *
+ * The form is five steps now, so most of these have to walk it. The helper
+ * below exists so that a change to the grouping breaks one function rather
+ * than nine tests.
  */
 
 test.describe('typed-only journey', () => {
   test('completes a profile and gets explained results', async ({ page }) => {
-    await page.goto('/en');
+    await completeForm(page, { age: '42', state: 'PB', gender: 'female', residence: 'rural' });
 
-    // The form is the whole first page now. The results used to occupy a second
-    // column that stood empty until submit, which is the defect this replaced.
-    await expect(page.getByRole('heading', { name: 'What we found' })).toHaveCount(0);
-
-    await page.locator('#input-age').fill('42');
-    await page.locator('#input-state').selectOption('PB');
-    await page.locator('#input-gender').selectOption('female');
-    await page.locator('#input-residence').selectOption('rural');
-
-    await page.getByRole('button', { name: 'Find my schemes' }).click();
-
-    const results = page.getByRole('region').or(page.locator('section[aria-live="polite"]'));
-    await expect(results.getByRole('heading', { name: 'What we found' })).toBeVisible({
+    await expect(page).toHaveURL(/\/en\/results/);
+    await expect(page.getByRole('heading', { name: 'What we found' })).toBeVisible({
       timeout: 20_000,
     });
 
@@ -32,11 +26,54 @@ test.describe('typed-only journey', () => {
     await expect(page.getByText(/out of \d+ schemes checked/)).toBeVisible();
   });
 
-  test('explains every verdict and exposes the source prose', async ({ page }) => {
+  test('walks five steps and remembers answers across them', async ({ page }) => {
     await page.goto('/en');
-    await page.locator('#input-age').fill('42');
+
+    await expect(page.getByText('Step 1 of 5')).toBeVisible();
+    await page.locator('#input-age').fill('30');
+
+    await page.getByRole('button', { name: 'Next' }).click();
+    await expect(page.getByText('Step 2 of 5')).toBeVisible();
+    await expect(page).toHaveURL(/step=2/);
+
     await page.locator('#input-state').selectOption('PB');
-    await page.getByRole('button', { name: 'Find my schemes' }).click();
+
+    // The phone's back button is the same control as Back, which is the point
+    // of keeping the step in the URL.
+    await page.getByRole('button', { name: 'Back' }).click();
+    await expect(page.getByText('Step 1 of 5')).toBeVisible();
+    await expect(page.locator('#input-age')).toHaveValue('30');
+
+    await page.getByRole('button', { name: 'Next' }).click();
+    await expect(page.locator('#input-state')).toHaveValue('PB');
+  });
+
+  test('every step can be left blank, all the way to the end', async ({ page }) => {
+    // INVARIANT 6, walked: a blank is never a barrier, and the citizen is told
+    // so on every step.
+    await page.goto('/en');
+
+    for (let step = 1; step < 5; step += 1) {
+      // Matched on the second sentence, which is unique -- "leave it blank"
+      // alone also appears in the income field's explanation.
+      await expect(page.getByText(/never say no because of a blank/i)).toBeVisible();
+
+      await page.getByRole('button', { name: 'Next' }).click();
+      await expect(page).toHaveURL(new RegExp(`step=${step + 1}`));
+    }
+
+    await expect(page.getByRole('button', { name: 'Find my schemes' })).toBeEnabled();
+  });
+
+  test('says why every question is being asked', async ({ page }) => {
+    await page.goto('/en');
+
+    // Not "Age" alone, which says what to type and not why anyone wants it.
+    await expect(page.getByText('Many schemes have an age range.')).toBeVisible();
+  });
+
+  test('explains every verdict and exposes the source prose', async ({ page }) => {
+    await completeForm(page, { age: '42', state: 'PB' });
 
     await expect(page.getByRole('heading', { name: 'What we found' })).toBeVisible({
       timeout: 20_000,
@@ -56,10 +93,8 @@ test.describe('typed-only journey', () => {
     );
   });
 
-  test('asks the next best question and focuses that field', async ({ page }) => {
-    await page.goto('/en');
-    await page.locator('#input-age').fill('30');
-    await page.getByRole('button', { name: 'Find my schemes' }).click();
+  test('asks the next best question', async ({ page }) => {
+    await completeForm(page, { age: '30' });
 
     const prompt = page.getByText('One more question would help');
     await expect(prompt).toBeVisible({ timeout: 20_000 });
@@ -71,7 +106,7 @@ test.describe('typed-only journey', () => {
   test('never coerces an unanswered field into a No', async ({ page }) => {
     // INVARIANT 6: absence of information is not disqualification. A profile
     // with only an age must leave the unanswered fields UNKNOWN, never FAIL.
-    await page.goto('/en');
+    await page.goto('/en?step=4');
 
     // Boolean fields offer an explicit "Not answered", and it is the default.
     const bplGroup = page.getByRole('group', { name: /Below Poverty Line/ });
@@ -80,8 +115,7 @@ test.describe('typed-only journey', () => {
       'true',
     );
 
-    await page.locator('#input-age').fill('30');
-    await page.getByRole('button', { name: 'Find my schemes' }).click();
+    await completeForm(page, { age: '30' });
 
     await expect(page.getByRole('heading', { name: 'What we found' })).toBeVisible({
       timeout: 20_000,
@@ -100,21 +134,15 @@ test.describe('typed-only journey', () => {
   test('works entirely in Punjabi', async ({ page }) => {
     // The pilot region's language is a first-class path, not a translation of
     // a demo (ADR-008).
-    await page.goto('/pa');
-
-    await page.locator('#input-age').fill('42');
-    await page.locator('#input-state').selectOption('PB');
-    await page.getByRole('button', { name: 'ਮੇਰੀਆਂ ਯੋਜਨਾਵਾਂ ਲੱਭੋ' }).click();
+    await completeForm(page, { age: '42', state: 'PB' }, 'pa');
 
     await expect(page.getByRole('heading', { name: 'ਸਾਨੂੰ ਕੀ ਮਿਲਿਆ' })).toBeVisible({
       timeout: 20_000,
     });
   });
-  test('submitting moves to the results route', async ({ page }) => {
-    await page.goto('/en');
 
-    await page.locator('#input-state').selectOption('PB');
-    await page.getByRole('button', { name: 'Find my schemes' }).click();
+  test('submitting moves to the results route', async ({ page }) => {
+    await completeForm(page, { state: 'PB' });
 
     await expect(page).toHaveURL(/\/en\/results/);
     await expect(page.getByRole('heading', { name: 'What we found' })).toBeVisible({
@@ -134,5 +162,4 @@ test.describe('typed-only journey', () => {
     await expect(page).toHaveURL(/\/en(\?|$)/);
     await expect(page.getByText(/we don.t keep your answers/i)).toBeVisible();
   });
-
 });

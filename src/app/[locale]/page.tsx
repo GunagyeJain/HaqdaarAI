@@ -1,28 +1,22 @@
 import { useTranslations } from 'next-intl';
+import { Suspense } from 'react';
 import { setRequestLocale } from 'next-intl/server';
+import { ExpiredNotice } from '@/components/expired-notice';
 import { ProfileForm } from '@/components/profile-form';
 import { SiteHeader } from '@/components/site-header';
 import { VoiceConsole } from '@/components/voice-console';
 
-export default async function HomePage({
-  params,
-  searchParams,
-}: {
-  params: Promise<{ locale: string }>;
-  searchParams: Promise<{ expired?: string }>;
-}) {
+export default async function HomePage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
-  const { expired } = await searchParams;
   setRequestLocale(locale);
 
-  return <Home expired={expired === '1'} />;
+  return <Home />;
 }
 
-function Home({ expired }: { expired: boolean }) {
+function Home() {
   const t = useTranslations('home');
   const tPrivacy = useTranslations('privacy');
   const tDisclaimer = useTranslations('app');
-  const tResults = useTranslations('results');
 
   return (
     <div className="min-h-dvh">
@@ -62,15 +56,6 @@ function Home({ expired }: { expired: boolean }) {
           </p>
         </div>
 
-        {expired && (
-          <p
-            role="status"
-            className="mb-6 rounded-xl border border-[var(--color-border-strong)] bg-[var(--color-surface-raised)] px-4 py-3 text-sm leading-relaxed"
-          >
-            {tResults('expired')}
-          </p>
-        )}
-
         {/* One column, always. The results used to sit in a second column that
             was empty until submit, so desktop opened on half a screen of
             nothing. They now have a route of their own. */}
@@ -78,7 +63,12 @@ function Home({ expired }: { expired: boolean }) {
           {/* Voice sits above the form deliberately: it is an accelerant, and
               the form beneath it is always the fallback and always complete. */}
           <VoiceConsole />
-          <ProfileForm />
+          {/* The form reads its step from the URL, and useSearchParams needs a
+              boundary for the page to stay statically rendered. */}
+          <Suspense fallback={null}>
+            <ExpiredNotice />
+            <ProfileForm />
+          </Suspense>
         </div>
 
         <footer className="mt-12 border-t border-[var(--color-border)] pt-6 text-[0.8rem] leading-relaxed text-[var(--color-ink-muted)] sm:text-sm">

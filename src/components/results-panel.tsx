@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { partition } from '@/domain/matching/shortlist';
 import type { MatchResultItem } from '@/domain/matching/types';
 import { useProfile } from '@/lib/profile-state';
+import { Signpost } from './illustrations';
 import { Narrowing } from './narrowing';
 import { SchemeCard } from './scheme-card';
 
@@ -53,11 +54,14 @@ export function ResultsPanel() {
 
   return (
     <section aria-live="polite" className="flex flex-col gap-6">
-      <div>
-        <h2 className="text-2xl font-bold tracking-tight">{t('heading')}</h2>
-        <p className="mt-1.5 text-sm leading-relaxed text-[var(--color-ink-muted)]">
-          {t('summary', { pass: counts.pass, unknown: counts.unknown, total: counts.total })}
-        </p>
+      <div className="flex items-start gap-4">
+        <div className="min-w-0 flex-1">
+          <h2 className="text-2xl font-bold tracking-tight">{t('heading')}</h2>
+          <p className="mt-1.5 text-sm leading-relaxed text-[var(--color-ink-muted)]">
+            {t('summary', { pass: counts.pass, unknown: counts.unknown, total: counts.total })}
+          </p>
+        </div>
+        <Signpost className="hidden w-24 shrink-0 sm:block" />
       </div>
 
       {shortlist.length > 0 ? (

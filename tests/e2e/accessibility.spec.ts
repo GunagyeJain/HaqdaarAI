@@ -186,3 +186,19 @@ test.describe('never scrolls sideways', () => {
     expect(scrollWidth).toBeLessThanOrEqual(clientWidth);
   });
 });
+
+test.describe('illustrations', () => {
+  test('are decorative and never the only carrier of meaning', async ({ page }) => {
+    // A drawing that announces itself is noise to a screen reader, and one that
+    // carries meaning not also in text is a barrier.
+    await page.goto('/en');
+
+    const svgs = page.locator('main svg');
+    const count = await svgs.count();
+    expect(count).toBeGreaterThan(0);
+
+    for (let index = 0; index < count; index += 1) {
+      await expect(svgs.nth(index)).toHaveAttribute('aria-hidden', 'true');
+    }
+  });
+});

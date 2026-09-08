@@ -8,6 +8,7 @@ import { useRouter } from '@/i18n/navigation';
 import { useProfile } from '@/lib/profile-state';
 import { LandField, ProfileFieldControl } from './fields';
 import { clampStep, FORM_STEPS, TOTAL_STEPS } from './form-steps';
+import { HandWithForm } from './illustrations';
 
 /**
  * The typed profile form, in five steps.
@@ -115,9 +116,12 @@ export function ProfileForm() {
           />
         </span>
 
-        <h2 className="mt-4 text-2xl font-bold tracking-tight">
-          {label(`step.${current.id}.title`)}
-        </h2>
+        <div className="mt-4 flex items-center gap-4">
+          <h2 className="min-w-0 flex-1 text-2xl font-bold tracking-tight">
+            {label(`step.${current.id}.title`)}
+          </h2>
+          {step === 1 && <HandWithForm className="hidden w-24 shrink-0 sm:block" />}
+        </div>
         <p className="mt-1.5 text-[0.95rem] leading-relaxed text-[var(--color-ink-muted)]">
           {label(`step.${current.id}.help`)}
         </p>

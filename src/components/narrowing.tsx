@@ -6,6 +6,7 @@ import { selectNextQuestion } from '@/domain/questions/select';
 import type { ProfileField } from '@/domain/rules/types';
 import { useProfile } from '@/lib/profile-state';
 import { ProfileFieldControl } from './fields';
+import { Lamp } from './illustrations';
 
 /**
  * A few good questions before the list.
@@ -60,7 +61,10 @@ export function Narrowing({ onDone }: { onDone: () => void }) {
 
   return (
     <section className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface-raised)] p-5 sm:p-6">
-      <h2 className="text-xl font-bold tracking-tight">{t('narrowHeading')}</h2>
+      <div className="flex items-center gap-4">
+        <h2 className="min-w-0 flex-1 text-xl font-bold tracking-tight">{t('narrowHeading')}</h2>
+        <Lamp className="hidden w-20 shrink-0 sm:block" />
+      </div>
 
       {!finished && question && (
         <>

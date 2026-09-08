@@ -2,6 +2,7 @@ import { useTranslations } from 'next-intl';
 import { Suspense } from 'react';
 import { setRequestLocale } from 'next-intl/server';
 import { ExpiredNotice } from '@/components/expired-notice';
+import { OpenDoor } from '@/components/illustrations';
 import { ProfileForm } from '@/components/profile-form';
 import { SiteHeader } from '@/components/site-header';
 import { VoiceConsole } from '@/components/voice-console';
@@ -27,33 +28,39 @@ function Home() {
             An earlier pass gave the hero the entire phone viewport, so the only
             thing a visitor could see was a headline — handsome, and useless.
             Desktop keeps the larger scale, where the room genuinely exists. */}
-        <div className="pt-7 pb-6 sm:pt-14 sm:pb-8">
-          <h1 className="max-w-3xl text-[1.75rem] leading-[1.15] font-extrabold tracking-tight text-balance sm:text-5xl">
-            {t('title')}
-          </h1>
-          <p className="mt-3 max-w-2xl text-base leading-relaxed text-[var(--color-ink-muted)] text-pretty sm:mt-4 sm:text-xl">
-            {t('subtitle')}
-          </p>
+        <div className="flex items-start gap-8 pt-7 pb-6 sm:pt-14 sm:pb-8">
+          <div className="min-w-0 flex-1">
+            <h1 className="max-w-3xl text-[1.75rem] leading-[1.15] font-extrabold tracking-tight text-balance sm:text-5xl">
+              {t('title')}
+            </h1>
+            <p className="mt-3 max-w-2xl text-base leading-relaxed text-[var(--color-ink-muted)] text-pretty sm:mt-4 sm:text-xl">
+              {t('subtitle')}
+            </p>
 
-          {/* INVARIANT 5, said to the citizen rather than only recorded in code.
-              People are about to be asked about caste, income and disability;
-              the promise not to keep it belongs next to the asking. */}
-          <p className="mt-5 inline-flex items-start gap-2 rounded-xl bg-[var(--color-brand-tint)] px-3.5 py-2.5 text-[0.85rem] leading-snug text-[var(--color-ink)] sm:text-sm">
-            <svg
-              viewBox="0 0 24 24"
-              className="mt-0.5 size-4 shrink-0"
-              fill="none"
-              aria-hidden="true"
-            >
-              <path
-                d="M12 3.5 5 6.5v5c0 4.2 2.9 7.6 7 9 4.1-1.4 7-4.8 7-9v-5l-7-3Z"
-                stroke="var(--color-brand-text)"
-                strokeWidth="1.8"
-                strokeLinejoin="round"
-              />
-            </svg>
-            {tPrivacy('notice')}
-          </p>
+            {/* INVARIANT 5, said to the citizen rather than only recorded in code.
+                People are about to be asked about caste, income and disability;
+                the promise not to keep it belongs next to the asking. */}
+            <p className="mt-5 inline-flex items-start gap-2 rounded-xl bg-[var(--color-brand-tint)] px-3.5 py-2.5 text-[0.85rem] leading-snug text-[var(--color-ink)] sm:text-sm">
+              <svg
+                viewBox="0 0 24 24"
+                className="mt-0.5 size-4 shrink-0"
+                fill="none"
+                aria-hidden="true"
+              >
+                <path
+                  d="M12 3.5 5 6.5v5c0 4.2 2.9 7.6 7 9 4.1-1.4 7-4.8 7-9v-5l-7-3Z"
+                  stroke="var(--color-brand-text)"
+                  strokeWidth="1.8"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              {tPrivacy('notice')}
+            </p>
+          </div>
+
+          {/* Decorative, and kept off the phone entirely: an earlier pass gave
+              the hero the whole viewport and left nothing to actually do. */}
+          <OpenDoor className="hidden w-44 shrink-0 lg:block" />
         </div>
 
         {/* One column, always. The results used to sit in a second column that

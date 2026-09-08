@@ -1,4 +1,4 @@
-import type { RuleNode, WildcardClause } from '../rules/types';
+import type { ProfileField, RuleNode, WildcardClause } from '../rules/types';
 import { extractCurrencyAmounts } from './numerals';
 
 /**
@@ -68,6 +68,43 @@ const DISJUNCTION_MARKERS =
  * pattern-matched around.
  */
 const SLASH_ALTERNATION = /(?<=\w)\s*\/\s*(?=\w)/;
+
+/**
+ * The same either/or again, written as a LIST -- audit finding F9.
+ *
+ * "The applicant belongs to General, SC, ST categories, SHG members, PWD,
+ * Women, and Transgender individuals" names the groups a scheme is open to.
+ * Read as a conjunction it asserted disabled AND Scheduled Caste AND female at
+ * once, so a General-category non-disabled male farmer -- the first words of
+ * the sentence -- was failed outright, while ST and Transgender vanished.
+ *
+ * Neither earlier guard sees it: there is no "or" and no slash, only commas and
+ * a closing "and".
+ *
+ * FOUR items, not two, and the threshold is the whole scoping decision. "The
+ * applicant should be a woman, belonging to the Scheduled Caste, and a resident
+ * of Punjab" is a genuine conjunction with two commas, and discarding it would
+ * trade F9 for a new false negative. A list long enough to enumerate groups is
+ * not a list of requirements anybody could meet simultaneously.
+ */
+const LIST_ITEM_THRESHOLD = 3;
+const LIST_CLOSER = /\b(?:and|or)\b/i;
+
+/**
+ * Fields that say WHO SOMEONE IS, as opposed to a bound they fall inside.
+ *
+ * A list that picks from these is picking a person, and picking the wrong
+ * branch fails someone the scheme names. A list of numeric bounds cannot do
+ * that, so it is left alone.
+ */
+const IDENTITY_FIELDS = new Set<ProfileField>([
+  'category',
+  'gender',
+  'isDisabled',
+  'isMinority',
+  'occupation',
+  'maritalStatus',
+]);
 
 /**
  * Unwraps markdown links to their label and drops bare URLs.
@@ -450,7 +487,19 @@ export function synthesizeClauses(prose: string): RuleNode[] {
   const assertsGender = found.some((node) => 'field' in node && node.field === 'gender');
   const slashSplitsCriteria = assertsGender && SLASH_ALTERNATION.test(readable);
 
-  if (DISJUNCTION_MARKERS.test(readable) || slashSplitsCriteria) {
+  // A long comma list that asserts WHO SOMEONE IS more than once is naming
+  // eligible groups, not stacking requirements (F9).
+  const identitiesAsserted = new Set(
+    found
+      .filter((node) => 'field' in node && IDENTITY_FIELDS.has(node.field))
+      .map((node) => ('field' in node ? node.field : null)),
+  );
+  const enumeratesGroups =
+    identitiesAsserted.size >= 2 &&
+    readable.split(',').length - 1 >= LIST_ITEM_THRESHOLD &&
+    LIST_CLOSER.test(readable);
+
+  if (DISJUNCTION_MARKERS.test(readable) || slashSplitsCriteria || enumeratesGroups) {
     return [wildcard(text, 'ambiguous')];
   }
 

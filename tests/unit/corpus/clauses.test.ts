@@ -481,3 +481,67 @@ describe('several criteria in one sentence', () => {
     ]);
   });
 });
+
+describe('a list of eligible groups is not a list of requirements', () => {
+  /**
+   * Audit finding F9, and the most severe open one when it was written.
+   *
+   * "The applicant belongs to General, SC, ST categories, SHG members, PWD,
+   * Women, and Transgender individuals" NAMES the groups a scheme is open to.
+   * Read as a conjunction it asserted disabled AND Scheduled Caste AND female
+   * simultaneously, so a General-category non-disabled male farmer -- the first
+   * words of the sentence -- was failed outright, and ST and Transgender
+   * vanished entirely.
+   *
+   * This is F2's defect arriving through punctuation the earlier guard does not
+   * cover: commas and a trailing "and", never the word "or".
+   */
+  it('declines to assert anything from an enumeration of groups', () => {
+    const clauses = synthesizeClauses(
+      'The applicant belongs to General, SC, ST categories, SHG members, PWD, ' +
+        'Women, and Transgender individuals.',
+    );
+
+    expect(clauses).toHaveLength(1);
+    expect(clauses[0]).toMatchObject({ op: 'WILDCARD', reason: 'ambiguous' });
+  });
+
+  /**
+   * THE SCOPING, which is the hard part and the reason this is narrow.
+   *
+   * A scheme genuinely restricted to Scheduled Caste women is a conjunction and
+   * must survive. The difference is not the number of fields asserted, it is
+   * the list: an enumeration separated by commas and closed with and/or.
+   */
+  it('keeps a genuine conjunction that is not a list', () => {
+    expect(synthesizeClauses('The applicant should be an SC girl student.')).toEqual([
+      { field: 'category', op: 'in', values: ['sc'] },
+      { field: 'gender', op: 'eq', value: 'female' },
+    ]);
+  });
+
+  it('keeps a list that only ever asserts one identity', () => {
+    // Commas and an "and", but nothing to pick between: the age is the only
+    // thing asserted, so there is no wrong branch to survive.
+    expect(
+      synthesizeClauses(
+        'The applicant should be a resident of Punjab, hold a ration card, ' +
+          'and be at least 18 years of age.',
+      ),
+    ).toEqual([{ field: 'age', op: 'gte', value: 18 }]);
+  });
+
+  it('keeps two identities asserted across separate bullets', () => {
+    // Separate criteria are separate. The guard is about one sentence listing
+    // alternatives, not about a scheme having two requirements.
+    const clauses = synthesizeClauses(
+      `- The applicant should belong to the Scheduled Caste.
+- The applicant should be a woman.`,
+    );
+
+    expect(clauses).toEqual([
+      { field: 'category', op: 'in', values: ['sc'] },
+      { field: 'gender', op: 'eq', value: 'female' },
+    ]);
+  });
+});

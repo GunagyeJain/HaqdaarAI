@@ -40,3 +40,8 @@ Thumbs.db
 *.log
 npm-debug.log*
 pnpm-debug.log*
+
+# Corpus dumps used to seed a remote database. Regenerate with pg_dump;
+# never commit one - it is a 1MB snapshot that goes stale immediately.
+corpus.sql
+*.dump

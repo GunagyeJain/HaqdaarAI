@@ -1,9 +1,15 @@
 # Corpus audit
 
-**Sample:** 15 of 483 schemes, `pnpm audit:sample 15 1` (deterministic, seed 1).
-**Date:** 2026-09-08. **Reviewer:** first pass by the coding agent; human sign-off outstanding.
+**Samples:** two of 15 schemes each, drawn deterministically from 483 —
+`pnpm audit:sample 15 1` and `pnpm audit:sample 15 2`. Fourteen of the second sample's
+schemes are new; `mafcw` appears in both.
+**Date:** 2026-09-08. **Reviewer:** both passes by the coding agent; human sign-off outstanding.
 
-Reproduce exactly with `pnpm audit:sample 15 1`.
+Reproduce exactly with `pnpm audit:sample 15 1` and `pnpm audit:sample 15 2`.
+
+The second sample was owed because *one sample of fifteen is enough to prove defects exist
+and not enough to bound them*. It found four more, one of which (F8) is the most severe
+defect this project has recorded.
 
 ---
 
@@ -118,6 +124,96 @@ The limit is scoped to OEBC applicants. The model applies it to everyone, includ
 Caste applicants the scheme is primarily for — so an SC family earning ₹80,000 is wrongly failed
 on a limit that was never meant to apply to them.
 
+### F8. An escaped apostrophe becomes an income ceiling of ₹39 — **systematic** · FIXED
+
+Found in the second sample, in `hpms` and `marriage-of-daughter-of-sc-widow`, and present in
+26 schemes corpus-wide.
+
+> *"The applicant**&#39;**s family annual income should not exceed ₹2,00,000/- from all sources."*
+
+```
+annualIncome lte 39
+```
+
+myscheme returns prose with HTML character references intact, and often double-escaped: an
+apostrophe arrives as `&#39;` or `&amp;#39;`. That string contains the digits **3** and **9**,
+and the income builders took the first number in the bullet.
+
+**Twenty-five schemes carried an income ceiling of ₹39 a year**, plus one at ₹468 where F1's
+monthly annualisation multiplied the same 39. **Nobody is under those ceilings, so every one of
+those schemes failed every applicant who reached it** — and they are scholarships and pensions
+for low-income families, which is exactly the population this project exists to surface. This is
+a worse instance of the harm than F1: F1 wrongly excluded a band of incomes, F8 excluded
+everybody.
+
+Grounding could not catch it, because "39" genuinely appears in the prose. Same blind spot as F1.
+
+**Fixed 2026-09-08.** References are decoded on the way into the parser. Stored prose is left
+exactly as scraped (invariant 4), so `pnpm db:renormalize` repaired the corpus with no re-scrape.
+
+**Three more of the same class came with it**, all "first number in the bullet":
+
+| Scheme | Prose | Stored | Actual limit |
+|---|---|---|---|
+| `post-st` | "From the academic year **1980**-81…" | `lte 1980` | none stated |
+| `mkym` | "For the **50%** Subsidy Scheme… below the poverty line" | `lt 50` | none stated |
+| `fadcs` | "₹**2, 00,000**/- per annum" (a stray space) | `lte 2` | ₹2,00,000 |
+
+So the income builders now ask for **amounts** — figures carrying a rupee marker or a scale word
+— rather than for numbers. A sentence stating no amount yields nothing and the bullet becomes
+UNKNOWN, which is honest and never a wrong FAIL.
+
+**The measurement caught a defect in the fix**, which is the second time that has happened today
+and is worth the discipline. The first version anchored on a bare `₹` and **discarded 15 sound
+income bounds**, because this corpus writes `₹ 2,00,000` with a space after the symbol and only
+the `Rs` branch allowed one. Real ceilings were vanishing — `aag` at ₹20,00,000, `gtadap` at
+₹75,000. Corrected, the net cost is **2 clauses**, both sentences that state no limit at all.
+
+**Corpus after:** zero income ceilings below ₹12,000/year remain, from 29 before.
+
+### F9. A list of eligible groups becomes a requirement to be all of them
+
+`beds` (Buffalo Entrepreneurship Development Scheme), second sample.
+
+> *"The applicant belongs to **General, SC, ST** categories, **SHG members, PWD, Women, and
+> Transgender** individuals."*
+
+```
+isDisabled eq true
+category in ["sc"]
+gender eq "female"
+```
+
+The sentence names the groups the scheme is open to. The model turned three of them into three
+**simultaneous** hard filters, so an applicant must now be disabled *and* Scheduled Caste *and*
+female. A General-category non-disabled male farmer — named in the sentence's first word — is
+failed outright, and "ST" and "Transgender" vanished entirely.
+
+This is F2's class (a disjunction flattened into a conjunction) arriving through a **comma-
+separated list** rather than a slash or the word "or", so the existing guard, scoped to gender
+and to `or`/`/`, walks straight past it. It is worse than F2 because it asserts three wrong
+filters at once instead of one.
+
+### F10. A residence-conditional income limit becomes a residence filter
+
+`tls-cl1mc` (Term Loan, Credit Line 1 for Minority Community), second sample.
+
+> *"The annual family income of the applicant should not exceed ₹98,000/- **(Rural Area)** and
+> ₹1,20,000/- **(Urban Area)**."*
+
+```
+annualIncome lte 98000
+residence eq "rural"
+```
+
+Two defects from one sentence. The lower of the two limits is applied to everyone, and — worse —
+**a residence requirement is invented that the prose never states.** The scheme is open to urban
+applicants at a higher ceiling; the stored rule fails every one of them on residence.
+
+F3 is the same shape (a scoped limit applied unconditionally) but stops short of fabricating a
+second filter. Expressing either correctly needs conditional rules the DSL does not have; what
+does not need the DSL is *not asserting the condition as a criterion*.
+
 ---
 
 ## Severity 2 — false positives
@@ -231,6 +327,33 @@ which reading dominates in Indian scheme prose.
 `sopaatdapwhsn` models `isDisabled eq true` twice, from two sentences that both mention disability.
 Harmless, but it inflates clause counts and makes the "what you meet" list repeat itself.
 
+The second sample shows this is not a one-off. `wbedrj` (Widow B.Ed Scheme) asserts
+`gender eq "female"` **four times**, from four bullets that each mention women. A citizen reading
+"what you meet" sees the same line four times, which reads as a bug in the page rather than as
+four criteria.
+
+### F5 again — the residency fix has a vocabulary, and it is too narrow
+
+`marriage-of-daughter-of-sc-widow`, second sample:
+
+> *"Applicant must have **lived in** Chandigarh for at least **3 years**."*
+
+```
+age gte 3
+```
+
+F5's fix keys on residency *terms* — "resident", "native", "domicile". "Lived in" is not among
+them, so the same defect survives in a phrasing the first sample did not contain. Harmless in
+effect, as F5 was, and the same wrong-field assertion underneath.
+
+### Recall, not correctness — a modellable bullet that is never reached
+
+`post-st` contains *"income from all sources does not exceed ₹ 2,00,000/- per annum"*, which
+synthesizes correctly as `annualIncome lte 200000` when passed to the parser on its own. In the
+scheme it produces no clause at all: the surrounding prose is not split into bullets the way the
+parser expects. Recorded because it is the opposite failure to the ones above — nothing wrong is
+asserted, something right is simply never seen.
+
 ---
 
 ## What this says about the corpus as a whole
@@ -247,6 +370,12 @@ addressable class rather than a general unreliability.
 **One in fifteen carries a serious false negative** (F2), and one systematic pattern (F1) affects
 every scheme that states a monthly income limit — a common phrasing for exactly the low-income
 schemes this project exists to surface.
+
+**The second sample did not flatten that curve.** Fourteen new schemes produced four more
+findings, two of them Severity 1, and one of those (F8) reached 26 schemes — more than F1's 28
+and strictly more harmful, since it excluded everyone rather than a band. Thirty schemes read
+across two samples is 6% of the corpus. **Nothing here supports a claim about the other 94%**,
+and the honest reading is that the defect rate has not yet been bounded.
 
 ---
 
@@ -268,7 +397,23 @@ schemes this project exists to surface.
       should apply to everyone (it should not, but expressing that needs conditional rules the
       DSL does not have). The Severity 3 cases ask what to do when one bullet states several
       criteria and only some are modellable — today the remainder leaves no trace at all.
-- [ ] Re-run `pnpm db:renormalize` after any normaliser change, then re-audit with the same seed
-      and diff the output.
-- [ ] Audit a second sample with a different seed before the pilot; one sample of fifteen is
-      enough to prove defects exist and not enough to bound them.
+- [x] ~~Re-run `pnpm db:renormalize` after any normaliser change, then re-audit with the same
+      seed and diff the output.~~ Done 2026-09-08. Seed 1 re-audited against the live corpus and
+      **all four claimed fixes verified there, not only in tests**: `mrcbspbocwwb` reads
+      `annualIncome lt 180000`, `sg-sw` has lost its gender filter, `gspv` reads
+      `age between 18 and 50`, `ombgh` has lost `age >= 5`.
+- [x] ~~Audit a second sample with a different seed.~~ Done 2026-09-08, seed 2. Found F8, F9,
+      F10, a fourfold duplicate, and a recurrence of F5 under a phrasing seed 1 did not contain.
+- [ ] **Fix F9 (a comma-separated list of eligible groups becomes a conjunction).** The most
+      severe open finding. F2's guard is scoped to gender and to `or`/`/`; this arrives as a
+      comma list and asserts three wrong filters at once. Scope it by measuring, as F2 was — an
+      unscoped rule will discard sound clauses.
+- [ ] **Fix F10 (an invented residence filter).** The narrower half is cheap and worth doing on
+      its own: never assert `residence` from a parenthetical that is qualifying an amount.
+- [ ] **Widen F5's residency vocabulary** to cover "lived in", and re-check the two exceptions
+      that made the original fix delicate.
+- [ ] **Deduplicate identical leaf clauses** within one scheme (F7). Cosmetic, cheap, and
+      visible to every citizen who reads "what you meet".
+- [ ] **A third sample.** Two samples of fifteen found ten defect classes between them and the
+      second sample's worst finding was systematic across 26 schemes. The curve has not flattened,
+      which is the argument for sampling again rather than declaring the corpus understood.

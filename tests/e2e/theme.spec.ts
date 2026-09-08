@@ -37,16 +37,41 @@ const themeOf = (page: import('@playwright/test').Page) =>
   });
 
 test.describe('theme switch', () => {
-  test('follows the device when nothing has been chosen', async ({ browser }) => {
+  test('defaults to light even on a device set to dark', async ({ browser }) => {
+    /**
+     * The default deliberately ignores the device.
+     *
+     * Following prefers-color-scheme was the earlier design, on the reasoning
+     * that most people never open a settings menu. That reasoning cut the other
+     * way once it met this audience: reading outdoors in sunlight is normal
+     * here, dark mode is markedly harder to read in it, and a phone set to dark
+     * globally is common. Following the device handed the worst default to the
+     * people most likely to be standing outside.
+     */
     const context = await browser.newContext({ colorScheme: 'dark' });
     const page = await context.newPage();
     await page.goto('/en');
 
-    // No stored choice, so no attribute is set at all — the media query alone
-    // decides, which is what keeps the default honest.
     const { attr, lightness } = await themeOf(page);
-    expect(attr).toBeNull();
+    expect(attr).toBe('light');
+    expect(lightness).toBeGreaterThan(80);
+
+    await context.close();
+  });
+
+  test('an explicit dark choice still wins on a device set to light', async ({ browser }) => {
+    const context = await browser.newContext({ colorScheme: 'light' });
+    const page = await context.newPage();
+    await page.goto('/en');
+
+    await page.getByRole('button', { name: 'Switch to dark mode' }).click();
+    const { attr, lightness } = await themeOf(page);
+
+    expect(attr).toBe('dark');
     expect(lightness).toBeLessThan(30);
+
+    await page.reload();
+    expect((await themeOf(page)).attr).toBe('dark');
 
     await context.close();
   });
@@ -63,15 +88,22 @@ test.describe('theme switch', () => {
     await expect(page.getByRole('button', { name: 'Switch to light mode' })).toBeVisible();
   });
 
-  test('choosing light beats a device set to dark', async ({ browser }) => {
-    // The case a naive toggle gets wrong.
+  test('choosing light back again sticks, on a device set to dark', async ({ browser }) => {
+    /**
+     * Light is now the default, so arriving in light on a dark device proves
+     * nothing on its own. What still has to hold is that light chosen
+     * DELIBERATELY is stored as a choice rather than treated as an absence --
+     * otherwise the distinction survives only until something else reads it.
+     */
     const context = await browser.newContext({ colorScheme: 'dark' });
     const page = await context.newPage();
     await page.goto('/en');
 
+    await page.getByRole('button', { name: 'Switch to dark mode' }).click();
+    expect((await themeOf(page)).attr).toBe('dark');
+
     await page.getByRole('button', { name: 'Switch to light mode' }).click();
     const { attr, lightness } = await themeOf(page);
-
     expect(attr).toBe('light');
     expect(lightness).toBeGreaterThan(80);
 

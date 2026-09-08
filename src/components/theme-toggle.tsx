@@ -6,12 +6,18 @@ import { useSyncExternalStore } from 'react';
 /**
  * Light / dark switch.
  *
- * Until someone chooses, the device decides — which is right for the majority
- * who never open a settings menu. Once they choose, that choice wins in both
- * directions, including choosing light on a phone that is globally dark. That
- * last case is the one a naive toggle gets wrong, and it is not hypothetical
- * here: reading outdoors in sunlight is a normal condition for this audience,
- * and dark mode is markedly harder to read in it.
+ * TWO STATES, not three, and the device is deliberately not consulted.
+ *
+ * The earlier design followed `prefers-color-scheme` until someone chose, on
+ * the reasoning that most people never open a settings menu. That reasoning
+ * reversed once it met this audience. Reading outdoors in sunlight is a normal
+ * condition here, dark mode is markedly harder to read in it, and a phone set
+ * to dark globally is common — so following the device handed the worst
+ * default to the people most likely to be standing in the sun. It also meant a
+ * language switch could silently change the theme, because losing the
+ * attribute meant falling back to the device rather than to a known default.
+ *
+ * An explicit choice is remembered and wins in both directions.
  *
  * The stored value is a display preference and nothing else. Invariant 5 is
  * about the applicant's profile — caste, income, disability — none of which is
@@ -33,7 +39,7 @@ type Choice = 'light' | 'dark';
  * Wrapped in try/catch because localStorage throws outright in some privacy
  * modes rather than returning null, and a themed page is not worth a blank one.
  */
-export const themeScript = `(function(){try{var t=localStorage.getItem('${STORAGE_KEY}');if(t==='dark'||t==='light'){document.documentElement.dataset.theme=t}}catch(e){}})()`;
+export const themeScript = `(function(){var d='light';try{if(localStorage.getItem('${STORAGE_KEY}')==='dark'){d='dark'}}catch(e){}document.documentElement.dataset.theme=d})()`;
 
 /**
  * Read through useSyncExternalStore rather than useState + useEffect.
@@ -48,28 +54,27 @@ const listeners = new Set<() => void>();
 
 const subscribe = (onChange: () => void) => {
   listeners.add(onChange);
-  const media = window.matchMedia('(prefers-color-scheme: dark)');
 
-  // The device preference can change while the page is open (a scheduled dark
-  // mode at sunset), and `storage` covers the same site open in another tab.
-  media.addEventListener('change', onChange);
+  // Only two things can change the answer now: this tab writing a choice, which
+  // notifies listeners directly, and another tab writing one, which is what
+  // `storage` reports. The device preference is no longer consulted, so
+  // subscribing to it would only cause pointless re-renders at sunset.
   window.addEventListener('storage', onChange);
 
   return () => {
     listeners.delete(onChange);
-    media.removeEventListener('change', onChange);
     window.removeEventListener('storage', onChange);
   };
 };
 
 const getSnapshot = (): Choice => {
   try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored === 'dark' || stored === 'light') return stored;
+    return localStorage.getItem(STORAGE_KEY) === 'dark' ? 'dark' : 'light';
   } catch {
-    // Storage unavailable; fall through to the device preference.
+    // Storage throws outright in some privacy modes. Light is the default
+    // anyway, so there is nothing to recover from.
+    return 'light';
   }
-  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 };
 
 /**

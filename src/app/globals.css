@@ -86,57 +86,24 @@
 }
 
 /**
- * Dark mode: the system preference by default, and the reader’s choice when
- * they make one.
+ * Dark mode, and it is never automatic.
  *
- * THREE STATES, not two. No stored choice means follow the device, which is
- * right for the majority who never open a settings menu. An explicit choice
- * has to win in BOTH directions, including choosing light on a phone that is
- * globally dark — someone reading outdoors in sunlight needs that, and it is
- * the case a naive toggle gets wrong.
+ * TWO STATES, not three. Light is the default and `prefers-color-scheme` is
+ * deliberately not consulted.
  *
- * The palette is therefore written twice, deliberately. The alternative,
- * CSS light-dark(), would express it once but needs a recent browser, and the
- * assumed device here is a mid-range Android that may be several Chrome
- * versions behind. Duplication is the cheaper mistake.
+ * The earlier design followed the device until someone chose, on the reasoning
+ * that most people never open a settings menu. That reasoning reversed once it
+ * met this audience: reading outdoors in sunlight is normal here, dark mode is
+ * markedly harder to read in it, and a phone set to dark globally is common. So
+ * following the device handed the worst possible default to the people most
+ * likely to be standing outside with the screen in the sun.
+ *
+ * An explicit choice is remembered and wins in both directions.
  *
  * Near-black rather than the usual dark slate, with a trace of warmth so it
  * reads as the same product rather than a different one.
  */
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) {
-    --color-surface: oklch(0.155 0.008 58);
-    --color-surface-raised: oklch(0.205 0.011 60);
-    --color-surface-sunken: oklch(0.122 0.006 58);
-    /* Lifted, not sunken -- see the light-mode note. */
-    --color-surface-selected: oklch(0.26 0.012 62);
-
-    --color-ink: oklch(0.955 0.008 85);
-    --color-ink-muted: oklch(0.745 0.014 80);
-    --color-border: oklch(0.305 0.014 64);
-    --color-border-strong: oklch(0.42 0.016 66);
-
-    /* Inverted pairing: a light terracotta carrying dark text. A dark fill on
-       a near-black ground would disappear. */
-    --color-brand: oklch(0.735 0.135 52);
-    --color-brand-on: oklch(0.17 0.02 50);
-    --color-brand-hover: oklch(0.80 0.12 55);
-    --color-brand-text: oklch(0.80 0.12 55);
-    --color-brand-tint: oklch(0.26 0.04 50);
-
-    --color-pass: oklch(0.66 0.14 152);
-    --color-fail: oklch(0.64 0.17 22);
-    --color-unknown: oklch(0.76 0.13 88);
-    --color-fail-on: oklch(0.17 0.02 30);
-
-    /* Lightened rather than darkened: the ground is dark now. */
-    --color-pass-text: oklch(0.80 0.13 152);
-    --color-fail-text: oklch(0.77 0.15 22);
-    --color-unknown-text: oklch(0.85 0.12 88);
-  }
-}
-
-/* An explicit choice, which must beat the media query above. */
+/* The only dark path. Applied when, and only when, the reader asks for it. */
 :root[data-theme='dark'] {
   --color-surface: oklch(0.155 0.008 58);
   --color-surface-raised: oklch(0.205 0.011 60);
@@ -169,7 +136,7 @@
 }
 @layer base {
   :root {
-    color-scheme: light dark;
+    color-scheme: light;
   }
 
   /* Native controls, scrollbars and form widgets follow color-scheme rather

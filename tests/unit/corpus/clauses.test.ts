@@ -545,3 +545,66 @@ describe('a list of eligible groups is not a list of requirements', () => {
     ]);
   });
 });
+
+describe('a limit scoped to where you live', () => {
+  /**
+   * Audit finding F10.
+   *
+   * "The annual family income of the applicant should not exceed 98,000
+   * (Rural Area) and 1,20,000 (Urban Area)" states TWO limits, one per place.
+   * It was read as the lower limit applied to everyone, plus a residence
+   * requirement the prose never states -- so every urban applicant, who the
+   * scheme covers at a higher ceiling, was failed on residence.
+   *
+   * The parenthetical was qualifying an amount, not describing the applicant.
+   * Conditional limits need rules the DSL does not have, but declining to
+   * invent the condition needs nothing at all.
+   */
+  it('asserts neither the lower limit nor a residence', () => {
+    const clauses = synthesizeClauses(
+      'The annual family income of the applicant should not exceed ₹98,000/- (Rural Area) ' +
+        'and ₹1,20,000/- (Urban Area).',
+    );
+
+    expect(clauses).toHaveLength(1);
+    expect(clauses[0]).toMatchObject({ op: 'WILDCARD', reason: 'ambiguous' });
+  });
+
+  it('still reads a scheme that names only one of them', () => {
+    expect(synthesizeClauses('The applicant should live in a rural area.')).toEqual([
+      { field: 'residence', op: 'eq', value: 'rural' },
+    ]);
+
+    expect(synthesizeClauses('The scheme is open to urban households.')).toEqual([
+      { field: 'residence', op: 'eq', value: 'urban' },
+    ]);
+  });
+
+  it('keeps a single limit that explicitly covers both areas', () => {
+    /**
+     * The counter-case, and the reason the guard counts amounts rather than
+     * place names. "3,00,000 in both rural and urban areas" is ONE ceiling
+     * that happens to name both places. Discarding it would trade F10 for a
+     * lost income bound on four real schemes -- measured, not guessed.
+     *
+     * The residence is still not asserted: naming both places describes the
+     * limit, never the applicant.
+     */
+    expect(
+      synthesizeClauses(
+        'The annual family income of the applicant should not exceed ₹3,00,000/- ' +
+          'in both rural and urban areas.',
+      ),
+    ).toEqual([{ field: 'annualIncome', op: 'lte', value: 300000 }]);
+  });
+
+  it('declines when the two places carry two different limits', () => {
+    const clauses = synthesizeClauses(
+      'The annual income of the applicant in urban areas should not exceed Rs. 56,460/- ' +
+        'and in rural areas Rs. 46,080/-.',
+    );
+
+    expect(clauses).toHaveLength(1);
+    expect(clauses[0]).toMatchObject({ op: 'WILDCARD', reason: 'ambiguous' });
+  });
+});

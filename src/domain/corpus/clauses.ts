@@ -87,6 +87,38 @@ const SLASH_ALTERNATION = /(?<=\w)\s*\/\s*(?=\w)/;
  * trade F9 for a new false negative. A list long enough to enumerate groups is
  * not a list of requirements anybody could meet simultaneously.
  */
+/**
+ * A criterion scoped to where someone lives -- audit finding F10.
+ *
+ * "...should not exceed 98,000 (Rural Area) and 1,20,000 (Urban Area)" states
+ * two limits, one per place. It was read as the lower limit applied to
+ * everyone, PLUS a residence requirement the prose never makes: the
+ * parenthetical was qualifying an amount, not describing the applicant. Every
+ * urban applicant, who the scheme covers at a higher ceiling, was failed on a
+ * criterion nobody wrote.
+ *
+ * TWO SEPARATE RULES, because measuring the first version showed one was too
+ * blunt on its own:
+ *
+ *   - Naming both places never asserts a residence. That half is free, and it
+ *     is the invented criterion.
+ *   - Naming both places AND stating two different amounts is a conditional
+ *     limit, which the DSL cannot express, so the bullet becomes UNKNOWN.
+ *
+ * A single ceiling that happens to mention both places -- "3,00,000 in both
+ * rural and urban areas" -- is perfectly modellable and is kept. Wildcarding
+ * those cost four real schemes their income bound in the first attempt.
+ */
+const RURAL = /\brural\b/i;
+const URBAN = /\burban\b/i;
+
+const statesBothResidences = (text: string): boolean =>
+  RURAL.test(text) && URBAN.test(text);
+
+/** Two places, two figures: a limit that depends on which one you live in. */
+const statesResidenceScopedAmounts = (text: string): boolean =>
+  statesBothResidences(text) && extractCurrencyAmounts(text).length >= 2;
+
 const LIST_ITEM_THRESHOLD = 3;
 const LIST_CLOSER = /\b(?:and|or)\b/i;
 
@@ -409,7 +441,8 @@ export function synthesizeClauses(prose: string): RuleNode[] {
   if (
     AMBIGUITY_MARKERS.test(text) ||
     EXCEPTION_MARKERS.test(text) ||
-    statesImpossibleAgeRange(text)
+    statesImpossibleAgeRange(text) ||
+    statesResidenceScopedAmounts(text)
   ) {
     return [wildcard(text, 'ambiguous')];
   }
@@ -439,6 +472,17 @@ export function synthesizeClauses(prose: string): RuleNode[] {
   // "resident", so a sentence stating both a residence and a real age keeps
   // the real age: "resident of Bihar and should be at least 25 years" is left
   // alone, because 25 is not the duration.
+  // Naming both places describes the limit, never the applicant (F10).
+  if (statesBothResidences(text)) {
+    const withoutResidence = found.filter(
+      (node) => !('field' in node && node.field === 'residence'),
+    );
+    if (withoutResidence.length !== found.length) {
+      found.length = 0;
+      found.push(...withoutResidence);
+    }
+  }
+
   const durationYears = residencyYears(text);
   if (durationYears !== null) {
     const isTheDuration = (node: RuleNode) =>

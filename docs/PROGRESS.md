@@ -208,9 +208,11 @@ rather than approximated from a synthetic-audio run that would flatter it.
 - [x] Rendering cap on the ineligible list (455 cards → 25)
 - [x] Scheduled re-scrape workflow written
 - [x] [DEPLOYMENT.md](DEPLOYMENT.md) — hosting, environment, post-deploy checks
-- [ ] **Deploy to Vercel + Neon** — needs your accounts
+- [x] **Deploy to Vercel + Neon** — live at https://haqdaar-ai.vercel.app, full 483-scheme corpus
 - [ ] **Verify the scheduled scrape fires once** — deployment blocker
-- [ ] Re-run all metrics against production
+- [x] Re-run all metrics against production — **latency FAILS there**: 2686ms median
+      vs 338ms local. Cause found and fix applied (`vercel.json` pins `sin1`);
+      **re-measure after redeploy**
 
 **Exit:** live, and all metrics re-verified on real infrastructure.
 
@@ -243,6 +245,9 @@ surprises, and things worth remembering go here:
 | 2026-09-08 | **A 429 arrives as a thrown `ProviderUnavailableError`, not a failed result.** `extractProfile` rethrows it deliberately, so the eval’s rate-limit counter never saw it and a throttled run reported FAILURE. Both the eval and the voice-latency harness now catch it and report **inconclusive**. Found by exhausting the real quota, not by reading the code. |
 | 2026-09-08 | **The degradation suite could never pass locally.** `next start` loads `.env.local`, so the local server always had real keys while the suite asserts their absence — and its assertions were spending real Groq and Sarvam budget calling providers expecting failure. `pnpm test:e2e:degraded` now starts a keyless server on port 3101. |
 | 2026-09-08 | Golden set is **40 transcripts**, 37 of them in adversarial scope (3 are `beyondGrounding`). Docs had said 38 in several places. |
+| 2026-09-08 | **Production latency fails the §6.1 target: 2686ms median, 8x the local 338ms.** `X-Vercel-Id: bom1::iad1` shows the function running in Virginia while the database is far from it; one trivial query costs ~180ms and the matcher spends ~2.0s on database round trips. Not a slow query — a transcontinental one. `vercel.json` now pins `sin1`. |
+| 2026-09-08 | **CI had never run before today** — the repo was local-only, so "CI runs every gate on each push" described the file, not reality. Four e2e gates needing a corpus had never protected anything; `tests/fixtures/corpus.sql` (25 real schemes) now gives CI one. |
+| 2026-09-08 | The latency spec died on Playwright’s 30s default against a slow deployment, reporting a stopwatch instead of a measurement. Timeout now scales with the run count so a failing deployment fails *with its number*. |
 
 ---
 

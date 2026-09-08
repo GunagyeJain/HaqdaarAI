@@ -25,6 +25,17 @@ const percentile = (samples: number[], p: number): number => {
 };
 
 test.describe('response latency', () => {
+  // A slow deployment must fail with its measurement, not with a stopwatch.
+  //
+  // Against production this suite hit Playwright's 30s default doing 12 runs of
+  // ~2.5s, and reported "Test timeout of 30000ms exceeded" — which says nothing
+  // about how slow the system actually was. The budget below is deliberately
+  // generous: its job is to let the run finish so the median can be reported
+  // and judged, not to be a second, hidden latency assertion.
+  test.beforeEach(() => {
+    test.setTimeout(RUNS * 10_000 + 30_000);
+  });
+
   test('the typed path returns a match well inside the 2s budget', async ({ request }) => {
     const profile = {
       age: 42,

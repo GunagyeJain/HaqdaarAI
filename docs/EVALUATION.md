@@ -9,7 +9,7 @@ Proposal §6 defines success as five measurable metrics. This document converts 
 
 | # | Metric | Target | Measured (2026-09-08) | Gate |
 |---|---|---|---|---|
-| 1 | Response latency | median ≤ 2s | **338ms** typed (p95 758ms) · **1210ms** voice (p95 1395ms) | `pnpm test:e2e` |
+| 1 | Response latency | median ≤ 2s | local **338ms** typed · **1210ms** voice · **production 2686ms = FAIL** | `pnpm test:e2e` |
 | 2 | Extraction accuracy | **0%** hallucinated | **0** adversarial · **0** live over 40 transcripts (2026-09-08) | `pnpm test:eval` |
 | 3 | Matching speed | < 100ms | **52.9ms** server over 483 schemes | `pnpm test` |
 | 4 | Corpus coverage | ≥ 150 schemes | **483**, 98% with a modelled clause | `pnpm test` |
@@ -58,8 +58,41 @@ bottleneck, so optimising it would buy nothing. 7 of 8 runs were measured — on
 a 502 from the extraction stage, and a throttled or degraded call is recorded as unmeasured
 rather than folded into the distribution as though the system were merely slow.
 
-Re-run after deployment: managed hosting adds network hops that shift the numbers, so a
-dev-machine measurement is not the result.
+### Production, measured 2026-09-08 — the target is NOT met
+
+Against `https://haqdaar-ai.vercel.app`, Vercel Hobby + Neon:
+
+| Path | Median | p95 | Target |
+|---|---|---|---|
+| Typed, local dev machine | 338ms | 758ms | pass |
+| Typed, **production** | **2686ms** | **2873ms** | **FAIL** |
+
+The local figure is kept rather than replaced, because the gap is the finding. Production is
+**8x slower** than the developer machine and misses the §6.1 budget outright.
+
+**Attributed, not guessed at.** Three measurements separate network from database:
+
+| Segment | Time | What it is |
+|---|---|---|
+| `GET /api/voice` | ~0.50s | client to the function and back; touches no database |
+| `GET /api/health` | ~0.68s | the same path plus **one** trivial query |
+| `POST /api/match` | ~2.5s | the same path plus the full matcher |
+
+So a single database round trip costs **~180ms**, and the matcher spends **~2.0s** talking to
+the database. Locally that same query is 52.9ms server-side. The matcher did not get slower — every round trip it makes now crosses an ocean.
+
+`X-Vercel-Id: bom1::iad1` names the cause exactly: the request enters at **Mumbai** but the
+function executes in **iad1, Virginia**, while the database sits far from Virginia. A 180ms
+trivial query is not a slow query; it is a transcontinental one.
+
+**Fix applied:** `vercel.json` pins functions to `sin1` (Singapore). Hobby permits exactly one
+region, and Singapore is right on both counts — it is beside the database and it is far
+closer to the citizens this is built for than Virginia is. Awaiting redeploy, after which
+these numbers are re-measured rather than assumed to have improved.
+
+**This is the value of re-measuring in production.** Every local number was honest and none
+of them predicted this. A dev-machine measurement is not the result.
+
 
 ---
 

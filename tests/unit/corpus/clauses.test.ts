@@ -138,6 +138,48 @@ describe('income stated per month', () => {
  * Less harmful than a false negative: it shows someone a scheme they will be
  * turned away from rather than hiding one they are entitled to. Still wrong.
  */
+/**
+ * YEARS OF RESIDENCE ARE NOT YEARS OF AGE (audit finding F5).
+ *
+ * "a Native/Resident of Puducherry for not less than 5 years" asserted
+ * `age >= 5`. Harmless in effect, since almost every applicant is older than
+ * five, but it is the wrong field — and the same misreading of a longer
+ * duration would not be harmless.
+ *
+ * The two counter-examples are the whole difficulty. Both mention residence
+ * AND a genuine age, and a rule that simply suppressed age near the word
+ * "resident" would silently discard a correct clause. So the test is not
+ * whether residence is mentioned, but whether the number IS the duration.
+ */
+describe('residency duration is not age', () => {
+  it.each([
+    'The applicant should be a Native/Resident of Puducherry for not less than 5 years.',
+    'The applicant must be a resident of Delhi for at least 5 years before applying.',
+    'Residence of a minimum of 5 years in Delhi before the date of application.',
+    'The applicant should have been residing in Haryana for at least 3 years.',
+  ])('does not read a duration as an age: %s', (prose) => {
+    const clauses = synthesizeClauses(prose);
+    expect(clauses.filter((c) => 'field' in c && c.field === 'age')).toEqual([]);
+  });
+
+  it('still reads an age stated alongside a residence', () => {
+    // The number here is the applicant’s age; "residing" is incidental.
+    const clauses = synthesizeClauses(
+      'All women of 60 years and above residing in the State of Punjab can apply.',
+    );
+
+    expect(clauses).toContainEqual({ field: 'age', op: 'gte', value: 60 });
+  });
+
+  it('still reads an age stated as a separate criterion', () => {
+    const clauses = synthesizeClauses(
+      'The applicant must be a resident of Bihar state and should be at least 25 years.',
+    );
+
+    expect(clauses).toContainEqual({ field: 'age', op: 'gte', value: 25 });
+  });
+});
+
 describe('a range written as two bounds', () => {
   it.each([
     [

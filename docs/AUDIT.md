@@ -184,7 +184,7 @@ and the inconsistency suggests a parser gap rather than a judgement call.
 `igoapsm` is an old-age pension. Age is the one criterion that matters most for it, it is stated
 in the plainest possible language, and it is the one thing the matcher refuses to decide.
 
-### F5. Residency duration read as an age
+### F5. Residency duration read as an age · FIXED
 
 `ombgh`:
 
@@ -198,6 +198,25 @@ Five years of *residence* became five years of *age*. Harmless in effect — alm
 is older than five — but it is the attribution failure from
 [ADR-012](DECISIONS.md#adr-012) appearing in the corpus layer rather than the extraction layer, and
 a different sentence would not be harmless.
+
+**Fixed 2026-09-08.** Fourteen bullets across the corpus were making this mistake, not one.
+
+**The two exceptions are what made it interesting.** Both of these mention residence *and* a
+genuine age, and a rule that suppressed age wherever "resident" appeared would have silently
+discarded a correct clause — trading a harmless wrong answer for a harmful missing one:
+
+> *"All women of **60 years** and above **residing** in the State of Punjab"* — the age comes
+> first and the residence is incidental.
+
+> *"a **resident** of Bihar state **and** should be at least **25 years**"* — two separate
+> criteria in one sentence.
+
+So the test is not whether residence is mentioned, but whether **the number is the duration**.
+The residency term has to come first and reach the number without crossing an "and", and the age
+clause is dropped only when its value equals the duration found. `ombgh` lost its `age >= 5`;
+`cbtfw60ya-p` kept its `age >= 60`.
+
+**Cost:** 13 clauses, every one of them an assertion about the wrong field.
 
 ### F6. "or below" is read as exclusive
 

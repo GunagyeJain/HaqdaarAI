@@ -80,6 +80,29 @@ const stripLinks = (text: string): string =>
   text.replace(/\[([^\]]*)\]\([^)]*\)/g, '$1').replace(/https?:\/\/\S+/g, '');
 
 /**
+ * A span of residence, which is not a span of life.
+ *
+ * "a Native/Resident of Puducherry for not less than 5 years" asserted
+ * `age >= 5` (audit finding F5). The number sits next to the word "years" and
+ * the age patterns take it, because nothing told them whose years they are.
+ *
+ * The residency term must come FIRST and reach the number without crossing an
+ * "and", which is what separates a duration from a genuine age stated nearby:
+ *
+ *   "resident of Puducherry FOR at least 5 years"        a duration
+ *   "resident of Bihar AND should be at least 25 years"  two criteria
+ *   "women OF 60 YEARS and above RESIDING in Punjab"     an age, stated first
+ */
+const RESIDENCY_DURATION =
+  /\b(?:resident|residing|residence|domicile|native)\b(?:(?!\band\b)[^.]){0,60}?\b(?:for|of)\s+(?:a\s+)?(?:at\s+least\s+|minimum\s+of\s+|not\s+less\s+than\s+)?(\d+)\s*(?:years|yrs)/i;
+
+/** The number of years of residence a sentence requires, if it requires any. */
+const residencyYears = (text: string): number | null => {
+  const match = RESIDENCY_DURATION.exec(text);
+  return match ? num(match[1]) : null;
+};
+
+/**
  * A range spelt out as two bounds rather than as "between X and Y".
  *
  * Shared by the pattern that reads it and the check that rejects it when the
@@ -372,6 +395,26 @@ export function synthesizeClauses(prose: string): RuleNode[] {
 
     claimed.add(node.field);
     found.push(node);
+  }
+
+  // Remove an age bound that is really the residency requirement wearing the
+  // word "years". Matched on the VALUE rather than on the mere presence of
+  // "resident", so a sentence stating both a residence and a real age keeps
+  // the real age: "resident of Bihar and should be at least 25 years" is left
+  // alone, because 25 is not the duration.
+  const durationYears = residencyYears(text);
+  if (durationYears !== null) {
+    const isTheDuration = (node: RuleNode) =>
+      'field' in node &&
+      node.field === 'age' &&
+      'value' in node &&
+      node.value === durationYears;
+
+    const kept = found.filter((node) => !isTheDuration(node));
+    if (kept.length !== found.length) {
+      found.length = 0;
+      found.push(...kept);
+    }
   }
 
   if (found.length === 0) {

@@ -26,7 +26,7 @@ import { STATE_LABELS } from '@/lib/state-labels';
  */
 
 const controlClass =
-  'min-h-11 w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-raised)] px-3 py-2 text-base';
+  'min-h-12 w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-raised)] px-3.5 py-2.5 text-base transition-colors hover:border-[var(--color-border-strong)]';
 
 export function FieldShell({
   field,
@@ -43,13 +43,13 @@ export function FieldShell({
     <div
       id={`field-${field}`}
       className={
-        'rounded-xl p-3 transition-colors ' +
+        'rounded-xl px-3 py-2.5 transition-colors ' +
         (highlighted
-          ? 'bg-[color-mix(in_oklch,var(--color-brand)_10%,transparent)] ring-2 ring-[var(--color-brand)]'
+          ? 'bg-[var(--color-brand-tint)] ring-2 ring-[var(--color-brand)]'
           : '')
       }
     >
-      <label htmlFor={`input-${field}`} className="mb-1.5 block text-sm font-medium">
+      <label htmlFor={`input-${field}`} className="mb-2 block text-sm font-semibold">
         {label}
       </label>
       {children}
@@ -176,10 +176,22 @@ export function BooleanField({
               aria-pressed={selected}
               onClick={() => onChange(choice.next)}
               className={
-                'min-h-11 rounded-lg border px-4 py-2 text-base transition-colors ' +
-                (selected
-                  ? 'border-[var(--color-brand)] bg-[var(--color-brand)] text-white'
-                  : 'border-[var(--color-border)] bg-[var(--color-surface-raised)]')
+                'min-h-12 rounded-xl border px-4 py-2 text-base transition-colors ' + (
+                  // A DELIBERATE ASYMMETRY. "Not answered" is the default for
+                  // every field, so filling it with the accent colour made the
+                  // absence of an answer the loudest thing on the page and left
+                  // a finished form looking identical to an untouched one.
+                  //
+                  // UNKNOWN is still a first-class verdict (invariant 6) and is
+                  // still plainly selectable and plainly selected. It is just not
+                  // celebrated. The accent is reserved for what the citizen told
+                  // us.
+                  selected && choice.key !== 'unset'
+                    ? 'border-[var(--color-brand)] bg-[var(--color-brand)] font-semibold text-[var(--color-brand-on)]'
+                    : selected
+                      ? 'border-[var(--color-border-strong)] bg-[var(--color-surface-sunken)] font-medium'
+                      : 'border-[var(--color-border)] bg-[var(--color-surface-raised)] hover:border-[var(--color-border-strong)]'
+                )
               }
             >
               {choice.label}

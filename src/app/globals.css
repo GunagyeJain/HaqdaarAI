@@ -4,60 +4,113 @@
  * Design tokens.
  *
  * The assumed reader is on a mid-range Android phone, possibly in bright
- * sunlight, possibly with low vision, reading a script that is not Latin.
- * Contrast here is a correctness concern, not taste: an interface this person
- * cannot read excludes exactly the citizen the tool was built for.
+ * sunlight, possibly with low vision, reading a script that is not Latin, and
+ * quite possibly unsure whether they are allowed to be asking at all.
  *
- * Every text colour below clears WCAG AA (4.5:1), verified automatically in
- * tests/e2e/accessibility.spec.ts rather than eyeballed. Decorative colours are
- * kept separate from text colours precisely so that a dot or a border can be
- * vivid without dragging a label below the threshold.
+ * Two things follow from that, and they are not in tension:
+ *
+ * CONTRAST IS CORRECTNESS. Every text colour clears WCAG AA (4.5:1), verified
+ * automatically in tests/e2e/accessibility.spec.ts across all five locales
+ * rather than eyeballed. Decorative colours are kept separate from text colours
+ * exactly so a dot or a border can be vivid without dragging a label under the
+ * threshold.
+ *
+ * WARMTH IS NOT DECORATION. This asks people for their caste, income and
+ * disability status. An interface that looks like a government portal invites
+ * the feeling that you need to already know the rules to use it — which is the
+ * precise barrier the project exists to remove. Cream rather than clinical
+ * white, terracotta rather than institutional blue, generous space rather than
+ * dense forms.
  */
 @theme {
-  --color-ink: oklch(0.22 0.02 250);
-  --color-ink-muted: oklch(0.44 0.015 250);
-  --color-surface: oklch(0.99 0.004 250);
-  --color-surface-raised: oklch(1 0 0);
-  --color-border: oklch(0.88 0.008 250);
+  /* ── Ground ─────────────────────────────────────────────────────────────
+     Cream, not white. Lower glare in sunlight and markedly less "form to be
+     filled in" than #fff. */
+  --color-surface: oklch(0.968 0.014 82);
+  --color-surface-raised: oklch(0.995 0.005 85);
+  --color-surface-sunken: oklch(0.938 0.018 80);
 
-  --color-brand: oklch(0.5 0.15 250);
-  --color-brand-strong: oklch(0.42 0.16 250);
+  --color-ink: oklch(0.24 0.018 55);
+  --color-ink-muted: oklch(0.455 0.02 60);
+  --color-border: oklch(0.865 0.016 78);
+  --color-border-strong: oklch(0.76 0.02 74);
 
-  /* Decorative — dots, borders, fills. Never used for text. */
-  --color-pass: oklch(0.55 0.14 150);
-  --color-fail: oklch(0.55 0.18 25);
-  --color-unknown: oklch(0.62 0.12 75);
+  /* ── Accent ─────────────────────────────────────────────────────────────
+     Terracotta. Warm and human, and deliberately not the default blue that
+     makes every generated interface look like every other one.
+
+     `brand-on` is paired with `brand` so a filled control always has a legible
+     label without anyone having to remember which mode inverts. */
+  --color-brand: oklch(0.505 0.145 42);
+  --color-brand-on: oklch(0.995 0.005 85);
+  --color-brand-hover: oklch(0.435 0.15 40);
+  --color-brand-text: oklch(0.435 0.14 40);
+  --color-brand-tint: oklch(0.945 0.035 62);
+
+  /* ── Verdicts ───────────────────────────────────────────────────────────
+     Decorative — dots, borders, fills. Never used for text.
+
+     Hues are spaced deliberately: terracotta sits at 42, so failure is pushed
+     to 22 (crimson) and "cannot tell" to 88 (gold). A citizen must never have
+     to work out whether a warm colour means "act" or "denied". */
+  --color-pass: oklch(0.58 0.14 152);
+  --color-fail: oklch(0.56 0.18 22);
+  --color-unknown: oklch(0.68 0.13 88);
+
+  /* Paired label colour for a filled destructive control, same reasoning as
+     brand-on: a fill that lightens in dark mode needs its text to darken. */
+  --color-fail-on: oklch(0.995 0.005 85);
 
   /* Text equivalents, darkened to clear AA on the raised surface. */
-  --color-pass-text: oklch(0.42 0.12 150);
-  --color-fail-text: oklch(0.44 0.16 25);
-  --color-unknown-text: oklch(0.42 0.09 75);
+  --color-pass-text: oklch(0.42 0.12 152);
+  --color-fail-text: oklch(0.44 0.16 22);
+  --color-unknown-text: oklch(0.42 0.09 82);
+
+  /* ── Type ───────────────────────────────────────────────────────────────
+     Set in layout.tsx. Latin first, then the locale's Indic face: Latin
+     digits, currency and scheme names keep one voice while the script is
+     rendered by a face actually designed for it. */
+  --font-sans: var(--font-latin), var(--font-indic), ui-sans-serif, system-ui, sans-serif;
+
+  --radius-card: 1rem;
 }
 
 /**
  * Dark mode follows the system. Useful in low light, and on the OLED panels
  * common in this price bracket it costs less battery — which matters when the
  * phone may be shared or charged infrequently.
+ *
+ * Near-black rather than the usual dark slate, with a trace of warmth so it
+ * reads as the same product rather than a different one.
  */
 @media (prefers-color-scheme: dark) {
   :root {
-    --color-ink: oklch(0.95 0.01 250);
-    --color-ink-muted: oklch(0.75 0.02 250);
-    --color-surface: oklch(0.18 0.015 250);
-    --color-surface-raised: oklch(0.23 0.015 250);
-    --color-border: oklch(0.36 0.015 250);
+    --color-surface: oklch(0.155 0.008 58);
+    --color-surface-raised: oklch(0.205 0.011 60);
+    --color-surface-sunken: oklch(0.122 0.006 58);
 
-    --color-brand: oklch(0.68 0.14 250);
-    --color-brand-strong: oklch(0.78 0.12 250);
+    --color-ink: oklch(0.955 0.008 85);
+    --color-ink-muted: oklch(0.745 0.014 80);
+    --color-border: oklch(0.305 0.014 64);
+    --color-border-strong: oklch(0.42 0.016 66);
 
-    --color-pass: oklch(0.62 0.14 150);
-    --color-fail: oklch(0.62 0.17 25);
-    --color-unknown: oklch(0.72 0.12 75);
+    /* Inverted pairing: a light terracotta carrying dark text. A dark fill on a
+       near-black ground would disappear. */
+    --color-brand: oklch(0.735 0.135 52);
+    --color-brand-on: oklch(0.17 0.02 50);
+    --color-brand-hover: oklch(0.80 0.12 55);
+    --color-brand-text: oklch(0.80 0.12 55);
+    --color-brand-tint: oklch(0.26 0.04 50);
+
+    --color-pass: oklch(0.66 0.14 152);
+    --color-fail: oklch(0.64 0.17 22);
+    --color-unknown: oklch(0.76 0.13 88);
+    --color-fail-on: oklch(0.17 0.02 30);
 
     /* Lightened rather than darkened: the ground is dark now. */
-    --color-pass-text: oklch(0.78 0.13 150);
-    --color-fail-text: oklch(0.75 0.15 25);
-    --color-unknown-text: oklch(0.82 0.12 75);
+    --color-pass-text: oklch(0.80 0.13 152);
+    --color-fail-text: oklch(0.77 0.15 22);
+    --color-unknown-text: oklch(0.85 0.12 88);
   }
 }
 
@@ -69,7 +122,9 @@
   body {
     background-color: var(--color-surface);
     color: var(--color-ink);
+    font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
   }
 
   /* Indic scripts carry more vertical detail than Latin and are unreadable at
@@ -78,13 +133,19 @@
   :lang(pa),
   :lang(bn),
   :lang(ta) {
-    line-height: 1.8;
+    line-height: 1.85;
   }
 
   /* A visible focus ring is a hard requirement, never something to design away. */
   :focus-visible {
-    outline: 3px solid var(--color-brand);
+    outline: 3px solid var(--color-brand-text);
     outline-offset: 2px;
+    border-radius: 0.35rem;
+  }
+
+  /* Keyboard focus must never land underneath the sticky action bar. */
+  :where(input, select, button, a, [tabindex]) {
+    scroll-margin-block: 6rem;
   }
 
   /* Respect a stated preference for less motion. */

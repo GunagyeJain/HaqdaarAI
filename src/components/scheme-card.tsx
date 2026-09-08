@@ -46,10 +46,10 @@ export function SchemeCard({ item }: { item: MatchResultItem }) {
 
   return (
     <article
-      className={`rounded-xl border border-l-4 border-[var(--color-border)] bg-[var(--color-surface-raised)] p-4 ${style.border}`}
+      className={`rounded-2xl border border-l-[5px] border-[var(--color-border)] bg-[var(--color-surface-raised)] p-4 sm:p-5 ${style.border}`}
     >
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h3 className="text-base font-semibold">{item.scheme.name}</h3>
+        <h3 className="text-[1.05rem] leading-snug font-bold">{item.scheme.name}</h3>
         {/* Colour is never the only signal — the verdict is always spelled out. */}
         <span className={`flex items-center gap-1.5 text-sm font-medium ${style.text}`}>
           <span className={`inline-block h-2 w-2 rounded-full ${style.dot}`} aria-hidden />
@@ -63,7 +63,7 @@ export function SchemeCard({ item }: { item: MatchResultItem }) {
       </p>
 
       {item.scheme.summary && (
-        <p className="mt-2 text-sm text-[var(--color-ink-muted)]">{item.scheme.summary}</p>
+        <p className="mt-2.5 text-sm leading-relaxed text-[var(--color-ink-muted)]">{item.scheme.summary}</p>
       )}
 
       <dl className="mt-3 grid gap-2 text-sm">
@@ -100,7 +100,7 @@ export function SchemeCard({ item }: { item: MatchResultItem }) {
               {item.unknownFields.map((field) => (
                 <span
                   key={field}
-                  className="rounded-full border border-[var(--color-border)] px-2 py-0.5 text-xs"
+                  className="rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] px-2.5 py-1 text-xs"
                 >
                   {t(`clause.${field}`)}
                 </span>
@@ -115,7 +115,7 @@ export function SchemeCard({ item }: { item: MatchResultItem }) {
           type="button"
           onClick={() => setShowProse((shown) => !shown)}
           aria-expanded={showProse}
-          className="min-h-11 text-[var(--color-brand-strong)] underline underline-offset-2"
+          className="min-h-11 text-[var(--color-brand-text)] underline underline-offset-2"
         >
           {t('sourceProse')}
         </button>
@@ -123,14 +123,14 @@ export function SchemeCard({ item }: { item: MatchResultItem }) {
           href={item.scheme.sourceUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="min-h-11 content-center text-[var(--color-brand-strong)] underline underline-offset-2"
+          className="min-h-11 content-center text-[var(--color-brand-text)] underline underline-offset-2"
         >
           {t('viewOnMyScheme')}
         </a>
       </div>
 
       {showProse && (
-        <blockquote className="mt-2 whitespace-pre-line rounded-lg border-l-2 border-[var(--color-border)] bg-[var(--color-surface)] p-3 text-sm text-[var(--color-ink-muted)]">
+        <blockquote className="mt-2 whitespace-pre-line rounded-xl border-l-2 border-[var(--color-border-strong)] bg-[var(--color-surface-sunken)] p-3.5 text-sm leading-relaxed text-[var(--color-ink-muted)]">
           {item.scheme.sourceProse}
         </blockquote>
       )}

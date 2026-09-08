@@ -67,12 +67,14 @@ export function ProfileForm() {
         void runMatch();
       }}
     >
-      <div className="mb-2">
-        <h2 className="text-xl font-semibold tracking-tight">{t('heading')}</h2>
-        <p className="mt-1 text-sm text-[var(--color-ink-muted)]">{t('intro')}</p>
+      <div className="mb-3">
+        <h2 className="text-xl font-bold tracking-tight">{t('heading')}</h2>
+        <p className="mt-1.5 text-[0.95rem] leading-relaxed text-[var(--color-ink-muted)]">
+          {t('intro')}
+        </p>
       </div>
 
-      <div className="grid gap-1 sm:grid-cols-2">
+      <div className="grid gap-1.5 sm:grid-cols-2">
         <NumberField
           field="age"
           label={t('field.age')}
@@ -206,22 +208,38 @@ export function ProfileForm() {
         </p>
       )}
 
-      <div className="sticky bottom-0 mt-3 flex flex-wrap items-center gap-3 border-t border-[var(--color-border)] bg-[var(--color-surface)] py-3">
+      {/* The bar floats over the fields as they scroll past. Previously it was
+          an opaque block with a hard rule across the top, which sliced whichever
+          field happened to be behind it clean in half. The gradient above it
+          says "there is more underneath" instead of pretending there is not. */}
+      <div className="pointer-events-none sticky bottom-0 -mt-2 h-6 bg-gradient-to-b from-transparent to-[var(--color-surface)]" />
+      <div className="sticky bottom-0 flex flex-wrap items-center gap-3 bg-[var(--color-surface)] pb-3 pt-1">
         <button
           type="submit"
           disabled={isMatching}
-          className="min-h-12 flex-1 rounded-xl bg-[var(--color-brand)] px-5 text-base font-semibold text-white disabled:opacity-60"
+          className="min-h-12 flex-1 rounded-xl bg-[var(--color-brand)] px-5 text-base font-semibold text-[var(--color-brand-on)] disabled:opacity-60"
         >
           {isMatching ? t('submitting') : t('submit')}
         </button>
         <button
           type="button"
           onClick={reset}
-          className="min-h-12 rounded-xl border border-[var(--color-border)] px-4 text-base"
+          className="min-h-12 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-raised)] px-4 text-base transition-colors hover:border-[var(--color-border-strong)]"
         >
           {t('reset')}
         </button>
-        <span className="w-full text-xs text-[var(--color-ink-muted)]">
+        {/* Progress, shown as something filling up rather than a bare count.
+            Every field is optional, so this is encouragement, not a demand. */}
+        <span className="flex w-full items-center gap-2.5 text-xs text-[var(--color-ink-muted)]">
+          <span
+            aria-hidden="true"
+            className="h-1.5 w-full max-w-28 overflow-hidden rounded-full bg-[var(--color-surface-sunken)]"
+          >
+            <span
+              className="block h-full rounded-full bg-[var(--color-brand)] transition-[width]"
+              style={{ width: `${(answeredCount / 16) * 100}%` }}
+            />
+          </span>
           {t('answered', { count: answeredCount, total: 16 })}
         </span>
       </div>

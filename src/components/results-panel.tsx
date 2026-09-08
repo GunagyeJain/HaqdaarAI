@@ -1,7 +1,7 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useProfile } from '@/lib/profile-state';
 import { SchemeCard } from './scheme-card';
 
@@ -28,10 +28,36 @@ export function ResultsPanel() {
   const t = useTranslations('results');
   const { result, nextQuestion, setHighlightedField } = useProfile();
   const [showFailed, setShowFailed] = useState(false);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+
+  /**
+   * On a phone the results sit below sixteen form fields, so submitting
+   * appeared to do nothing at all: the button is at the bottom of the
+   * viewport, the answer is a screen and a half further down, and the only
+   * visible change is a progress count ticking up. People conclude it is
+   * broken, because from where they are sitting it is.
+   *
+   * Desktop shows both columns at once and needs none of this, which is
+   * exactly why it went unnoticed on a laptop.
+   *
+   * Honours prefers-reduced-motion, and only moves focus-free scroll — the
+   * live region already announces the result to a screen reader, so
+   * stealing focus here would interrupt rather than help.
+   */
+  useEffect(() => {
+    if (!result || !headingRef.current) return;
+    if (!window.matchMedia('(max-width: 1023px)').matches) return;
+
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    headingRef.current.scrollIntoView({
+      behavior: reduced ? 'auto' : 'smooth',
+      block: 'start',
+    });
+  }, [result]);
 
   if (!result) {
     return (
-      <div className="rounded-xl border border-dashed border-[var(--color-border)] p-6 text-center text-sm text-[var(--color-ink-muted)]">
+      <div className="hidden rounded-2xl border border-dashed border-[var(--color-border-strong)] bg-[var(--color-surface-raised)]/50 p-8 text-center text-sm leading-relaxed text-[var(--color-ink-muted)] lg:block">
         {t('empty')}
       </div>
     );
@@ -41,9 +67,11 @@ export function ResultsPanel() {
 
   return (
     <section aria-live="polite" className="flex flex-col gap-4">
-      <div>
-        <h2 className="text-xl font-semibold tracking-tight">{t('heading')}</h2>
-        <p className="mt-1 text-sm text-[var(--color-ink-muted)]">
+      <div className="scroll-mt-4">
+        <h2 ref={headingRef} className="scroll-mt-4 text-xl font-bold tracking-tight">
+          {t('heading')}
+        </h2>
+        <p className="mt-1.5 text-sm leading-relaxed text-[var(--color-ink-muted)]">
           {t('summary', { pass: counts.pass, unknown: counts.unknown, total: counts.total })}
         </p>
       </div>
@@ -74,7 +102,7 @@ export function ResultsPanel() {
             type="button"
             onClick={() => setShowFailed((shown) => !shown)}
             aria-expanded={showFailed}
-            className="min-h-11 self-start text-sm text-[var(--color-brand-strong)] underline underline-offset-2"
+            className="min-h-11 self-start text-sm text-[var(--color-brand-text)] underline underline-offset-2"
           >
             {showFailed ? t('hideFailed') : t('showFailed', { count: counts.fail })}
           </button>
@@ -127,7 +155,7 @@ function NextQuestionCard({ onAnswer }: { onAnswer: (field: null) => void }) {
               ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
             document.getElementById(`input-${nextQuestion.field}`)?.focus();
           }}
-          className="min-h-11 rounded-lg bg-[var(--color-brand)] px-4 text-sm font-semibold text-white"
+          className="min-h-11 rounded-lg bg-[var(--color-brand)] px-4 text-sm font-semibold text-[var(--color-brand-on)]"
         >
           {tResults(`clause.${nextQuestion.field}`)}
         </button>

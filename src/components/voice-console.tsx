@@ -241,7 +241,7 @@ export function VoiceConsole() {
           <button
             type="button"
             onClick={stop}
-            className="min-h-12 rounded-xl bg-[var(--color-fail)] px-5 text-base font-semibold text-white"
+            className="min-h-12 rounded-xl bg-[var(--color-fail)] px-5 text-base font-semibold text-[var(--color-fail-on)]"
           >
             {t('stop')}
           </button>
@@ -250,7 +250,7 @@ export function VoiceConsole() {
             type="button"
             onClick={() => void start()}
             disabled={phase === 'processing'}
-            className="min-h-12 rounded-xl bg-[var(--color-brand)] px-5 text-base font-semibold text-white disabled:opacity-60"
+            className="min-h-12 rounded-xl bg-[var(--color-brand)] px-5 text-base font-semibold text-[var(--color-brand-on)] disabled:opacity-60"
           >
             {t('start')}
           </button>
@@ -352,7 +352,7 @@ function SuggestionReview({
         <button
           type="button"
           onClick={onConfirm}
-          className="min-h-12 rounded-xl bg-[var(--color-brand)] px-5 text-base font-semibold text-white"
+          className="min-h-12 rounded-xl bg-[var(--color-brand)] px-5 text-base font-semibold text-[var(--color-brand-on)]"
         >
           {t('confirm')}
         </button>

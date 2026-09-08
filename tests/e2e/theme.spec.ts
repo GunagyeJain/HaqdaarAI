@@ -36,6 +36,28 @@ const themeOf = (page: import('@playwright/test').Page) =>
     return { attr: document.documentElement.dataset.theme ?? null, lightness };
   });
 
+/**
+ * Waits for the theme to settle before judging it.
+ *
+ * The ground carries a 150ms colour transition, so reading its lightness the
+ * instant after a click samples the fade rather than the result. Polling is
+ * more honest than disabling motion: it asserts what a reader actually ends up
+ * looking at.
+ */
+const expectTheme = async (
+  page: import('@playwright/test').Page,
+  want: 'light' | 'dark',
+): Promise<void> => {
+  await expect
+    .poll(async () => {
+      const { attr, lightness } = await themeOf(page);
+      if (attr !== want) return `attr=${attr}`;
+      if (want === 'dark') return lightness < 30 ? 'settled' : `too light (${lightness})`;
+      return lightness > 80 ? 'settled' : `too dark (${lightness})`;
+    })
+    .toBe('settled');
+};
+
 test.describe('theme switch', () => {
   test('defaults to light even on a device set to dark', async ({ browser }) => {
     /**
@@ -52,9 +74,7 @@ test.describe('theme switch', () => {
     const page = await context.newPage();
     await page.goto('/en');
 
-    const { attr, lightness } = await themeOf(page);
-    expect(attr).toBe('light');
-    expect(lightness).toBeGreaterThan(80);
+    await expectTheme(page, 'light');
 
     await context.close();
   });
@@ -62,17 +82,10 @@ test.describe('theme switch', () => {
   test('an explicit dark choice still wins on a device set to light', async ({ browser }) => {
     const context = await browser.newContext({ colorScheme: 'light' });
     const page = await context.newPage();
-    // Motion off: the ground now carries a 150ms colour transition, so reading
-    // its lightness straight after a click samples the fade rather than the
-    // result.
-    await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.goto('/en');
 
     await page.getByRole('button', { name: 'Switch to dark mode' }).click();
-    const { attr, lightness } = await themeOf(page);
-
-    expect(attr).toBe('dark');
-    expect(lightness).toBeLessThan(30);
+    await expectTheme(page, 'dark');
 
     await page.reload();
     expect((await themeOf(page)).attr).toBe('dark');
@@ -101,19 +114,13 @@ test.describe('theme switch', () => {
      */
     const context = await browser.newContext({ colorScheme: 'dark' });
     const page = await context.newPage();
-    // Motion off: the ground now carries a 150ms colour transition, so reading
-    // its lightness straight after a click samples the fade rather than the
-    // result.
-    await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.goto('/en');
 
     await page.getByRole('button', { name: 'Switch to dark mode' }).click();
     expect((await themeOf(page)).attr).toBe('dark');
 
     await page.getByRole('button', { name: 'Switch to light mode' }).click();
-    const { attr, lightness } = await themeOf(page);
-    expect(attr).toBe('light');
-    expect(lightness).toBeGreaterThan(80);
+    await expectTheme(page, 'light');
 
     await page.reload();
     expect((await themeOf(page)).attr).toBe('light');
@@ -158,7 +165,8 @@ test.describe('theme switch', () => {
      * test pass against the broken code.
      */
     await page.emulateMedia({ reducedMotion: 'reduce' });
-    await page.goto('/en');
+    // The boolean chips live on step 4 of the form now.
+    await page.goto('/en?step=4');
     await page.getByRole('button', { name: 'Switch to dark mode' }).click();
 
     const group = page.getByRole('group', {
@@ -224,9 +232,7 @@ test.describe('theme switch', () => {
     await page.getByLabel('Language').selectOption('ta');
     await expect(page).toHaveURL(/\/ta/);
 
-    const { attr, lightness } = await themeOf(page);
-    expect(attr).toBe('light');
-    expect(lightness).toBeGreaterThan(80);
+    await expectTheme(page, 'light');
 
     await context.close();
   });
@@ -246,7 +252,11 @@ test.describe('theme switch', () => {
      * switcher -- a control with no transition -- so it compared 0s to 0s and
      * passed against the broken page.
      */
-    await page.goto('/en');
+    // Step 4 carries the boolean chips, which are the controls that transition.
+    await page.goto('/en?step=4');
+    // The form renders after hydration inside a Suspense boundary, so the chip
+    // is not in the DOM the instant the navigation resolves.
+    await expect(page.getByRole('group', { name: /Below Poverty Line/ })).toBeVisible();
 
     const timings = await page.evaluate(() => {
       const chip = document.querySelector('[role="group"] button');
@@ -262,7 +272,11 @@ test.describe('theme switch', () => {
 
   test('a stated preference for less motion still removes the transition', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
-    await page.goto('/en');
+    // Step 4 carries the boolean chips, which are the controls that transition.
+    await page.goto('/en?step=4');
+    // The form renders after hydration inside a Suspense boundary, so the chip
+    // is not in the DOM the instant the navigation resolves.
+    await expect(page.getByRole('group', { name: /Below Poverty Line/ })).toBeVisible();
 
     const timings = await page.evaluate(() => {
       const chip = document.querySelector('[role="group"] button');

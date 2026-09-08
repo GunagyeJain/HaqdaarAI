@@ -2,10 +2,11 @@
 
 import { useTranslations } from 'next-intl';
 import { useSearchParams } from 'next/navigation';
+import { useCallback } from 'react';
 import type { ProfileField } from '@/domain/rules/types';
 import { useRouter } from '@/i18n/navigation';
 import { useProfile } from '@/lib/profile-state';
-import { ProfileFieldControl } from './fields';
+import { LandField, ProfileFieldControl } from './fields';
 import { clampStep, FORM_STEPS, TOTAL_STEPS } from './form-steps';
 
 /**
@@ -70,6 +71,19 @@ export function ProfileForm() {
     else setField(field, value as never);
   };
 
+  /**
+   * Stable, because LandField recomputes inside an effect that depends on it.
+   * `setField` and `clearField` are themselves stable, so this never changes
+   * identity and the effect never loops.
+   */
+  const setLand = useCallback(
+    (hectares: number | undefined) => {
+      if (hectares === undefined) clearField('landHoldingHectares');
+      else setField('landHoldingHectares', hectares);
+    },
+    [clearField, setField],
+  );
+
   const goToStep = (next: number) => {
     router.push(`/?step=${next}`);
   };
@@ -112,12 +126,23 @@ export function ProfileForm() {
       <div className="flex flex-col gap-4">
         {visibleFields.map((field) => (
           <div key={field}>
-            <ProfileFieldControl
-              field={field}
-              value={profile[field]}
-              highlighted={highlightedField === field}
-              onChange={change(field)}
-            />
+            {field === 'landHoldingHectares' ? (
+              // Asked in the citizen's own unit, and converted only against a
+              // meaning they chose. See src/domain/units/land.ts.
+              <LandField
+                value={profile.landHoldingHectares}
+                state={profile.state}
+                highlighted={highlightedField === field}
+                onChange={setLand}
+              />
+            ) : (
+              <ProfileFieldControl
+                field={field}
+                value={profile[field]}
+                highlighted={highlightedField === field}
+                onChange={change(field)}
+              />
+            )}
             <p className="mt-1 px-3 text-sm leading-relaxed text-[var(--color-ink-muted)]">
               {label(`why.${field}`)}
             </p>

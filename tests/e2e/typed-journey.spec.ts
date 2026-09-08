@@ -162,4 +162,38 @@ test.describe('typed-only journey', () => {
     await expect(page).toHaveURL(/\/en(\?|$)/);
     await expect(page.getByText(/we don.t keep your answers/i)).toBeVisible();
   });
+  test('land can be given in bigha, and is echoed back in acres to check', async ({ page }) => {
+    /**
+     * A farmer who knows their holding in bigha and not in hectares would
+     * otherwise leave this blank, and the blank costs them every small-farmer
+     * scheme. But bigha is a family of local customs sharing a name, so the
+     * local meaning is CHOSEN, never inferred, and the result is shown back in
+     * a unit they can check.
+     */
+    await page.goto('/en?step=2');
+    await page.locator('#input-state').selectOption('PB');
+
+    await page.getByRole('button', { name: 'Next' }).click();
+    await expect(page).toHaveURL(/step=3/);
+    await page.getByRole('button', { name: 'Next' }).click();
+    await expect(page).toHaveURL(/step=4/);
+
+    await page.locator('#input-land-unit').selectOption('bigha');
+    await page.getByRole('button', { name: 'The usual size here' }).click();
+    await page.locator('#input-landHoldingHectares').fill('2');
+
+    // Punjab's bigha is half an acre, so two of them is one acre.
+    await expect(page.getByText(/about 0\.40 hectares/i)).toBeVisible();
+    await expect(page.getByText(/roughly 1\.0 acres/i)).toBeVisible();
+  });
+
+  test('bigha is not offered until the state is known', async ({ page }) => {
+    // Offering it without a state would mean choosing a factor on the citizen's
+    // behalf, and the factors differ fourfold.
+    await page.goto('/en?step=4');
+
+    await expect(page.locator('#input-land-unit option[value="bigha"]')).toHaveCount(0);
+    await expect(page.getByText(/tell us your state first/i)).toBeVisible();
+  });
+
 });

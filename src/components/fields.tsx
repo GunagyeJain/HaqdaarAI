@@ -1,6 +1,7 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
+import { useEffect, useState } from 'react';
 import {
   CATEGORIES,
   EDUCATION_LEVELS,
@@ -11,7 +12,16 @@ import {
   RESIDENCES,
   STATE_CODES,
   type ProfileField,
+  type StateCode,
 } from '@/domain/rules/types';
+import {
+  bighaVariants,
+  LAND_UNITS,
+  toAcres,
+  toHectares,
+  type BighaVariant,
+  type LandUnit,
+} from '@/domain/units/land';
 import { STATE_LABELS } from '@/lib/state-labels';
 
 /**
@@ -319,6 +329,138 @@ export function ProfileFieldControl({
         value={typeof value === 'string' ? value : ''}
         onChange={(event) => onChange(event.target.value || undefined)}
       />
+    </FieldShell>
+  );
+}
+
+/**
+ * Land, asked in the unit the citizen actually thinks in.
+ *
+ * A farmer who knows their holding in bigha and not in hectares would otherwise
+ * leave this blank, and the blank costs them every small-farmer scheme. So
+ * bigha is offered.
+ *
+ * But bigha is a family of local customs sharing a name, spread wide enough to
+ * change a verdict -- Uttar Pradesh varies fourfold against itself. So the local
+ * meaning is put to the citizen as a choice, never inferred from their state,
+ * and the result is echoed back in acres for them to sanity-check. If they
+ * cannot answer, the field stays blank and the verdict stays UNKNOWN. Never a
+ * converted guess.
+ */
+export function LandField({
+  value,
+  state,
+  highlighted,
+  onChange,
+}: {
+  value: number | undefined;
+  state: StateCode | undefined;
+  highlighted?: boolean;
+  onChange: (hectares: number | undefined) => void;
+}) {
+  const t = useTranslations('profile');
+  const label = t as unknown as (key: string, values?: Record<string, string>) => string;
+
+  const [unit, setUnit] = useState<LandUnit>('acre');
+  const [entered, setEntered] = useState('');
+  const [variantId, setVariantId] = useState<string | undefined>(undefined);
+
+  const variants = bighaVariants(state);
+  const variant = variants.find((candidate) => candidate.id === variantId);
+  const offered = variants.length > 0 ? LAND_UNITS : LAND_UNITS.filter((one) => one !== 'bigha');
+
+  /**
+   * Recompute whenever anything it depends on moves -- including the state,
+   * which is set by a different field on a different step. Without this, a
+   * citizen who picked a bigha variant and then corrected their state would
+   * keep the area computed under the old state's factor, which is precisely
+   * the wrong-number-that-looks-right this module exists to refuse.
+   *
+   * `onChange` must therefore be stable, and the caller memoises it. Routing it
+   * through a ref instead would mean writing a ref during render, which React
+   * rightly objects to.
+   */
+  useEffect(() => {
+    const parsed = Number.parseFloat(entered);
+    if (!Number.isFinite(parsed)) {
+      onChange(undefined);
+      return;
+    }
+    onChange(toHectares(parsed, unit, variant) ?? undefined);
+  }, [entered, unit, variant, onChange]);
+
+  return (
+    <FieldShell
+      field="landHoldingHectares"
+      label={label('field.landHoldingHectares')}
+      highlighted={highlighted}
+    >
+      <input
+        id="input-landHoldingHectares"
+        type="number"
+        inputMode="decimal"
+        min={0}
+        className={controlClass}
+        value={entered}
+        onChange={(event) => setEntered(event.target.value)}
+      />
+
+      <label className="mt-3 mb-1.5 block text-sm font-medium" htmlFor="input-land-unit">
+        {label('land.unit')}
+      </label>
+      <select
+        id="input-land-unit"
+        className={controlClass}
+        value={unit}
+        onChange={(event) => setUnit(event.target.value as LandUnit)}
+      >
+        {offered.map((option) => (
+          <option key={option} value={option}>
+            {label(`land.unit_${option}`)}
+          </option>
+        ))}
+      </select>
+
+      {variants.length === 0 && (
+        <p className="mt-2 text-sm text-[var(--color-ink-muted)]">{label('land.bighaNeedsState')}</p>
+      )}
+
+      {unit === 'bigha' && variants.length > 0 && (
+        <>
+          <p className="mt-3 text-sm font-medium">{label('land.bighaWhich')}</p>
+          <div
+            role="group"
+            aria-label={label('land.bighaWhich')}
+            className="mt-1.5 flex flex-wrap gap-2"
+          >
+            {variants.map((candidate: BighaVariant) => (
+              <button
+                key={candidate.id}
+                type="button"
+                aria-pressed={candidate.id === variantId}
+                onClick={() => setVariantId(candidate.id)}
+                className={
+                  'min-h-12 rounded-xl border px-4 py-2 text-base transition-colors ' +
+                  (candidate.id === variantId
+                    ? 'border-[var(--color-border-strong)] bg-[var(--color-surface-selected)] font-semibold'
+                    : 'border-[var(--color-border)] bg-[var(--color-surface-raised)] hover:border-[var(--color-border-strong)]')
+                }
+              >
+                {label(`land.bigha_${candidate.id}`)}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+
+      {value !== undefined && (
+        <p className="mt-2.5 text-sm text-[var(--color-ink-muted)]">
+          {label('land.echo', {
+            hectares: value.toFixed(2),
+            acres: toAcres(value).toFixed(1),
+          })}
+        </p>
+      )}
     </FieldShell>
   );
 }

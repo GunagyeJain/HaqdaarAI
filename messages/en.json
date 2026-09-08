@@ -16,6 +16,24 @@
     "notice": "Nothing you enter is saved. Your answers stay in this browser and are never stored."
   },
   "profile": {
+    "land": {
+      "unit": "Measured in",
+      "unit_hectare": "Hectares",
+      "unit_acre": "Acres",
+      "unit_square_metre": "Square metres",
+      "unit_square_foot": "Square feet",
+      "unit_bigha": "Bigha",
+      "bighaWhich": "A bigha is a different size in different places. Which one is yours?",
+      "bigha_standard": "The usual size here",
+      "bigha_pucca": "Pucca bigha, the larger one",
+      "bigha_kaccha": "Kaccha bigha, the smaller one",
+      "bigha_east": "Eastern part of the state, the larger one",
+      "bigha_west": "Western part of the state, the smaller one",
+      "bigha_plains": "In the plains, the larger one",
+      "bigha_hills": "In the hills, the smaller one",
+      "bighaNeedsState": "Tell us your state first and we can offer bigha.",
+      "echo": "That is about {hectares} hectares, roughly {acres} acres."
+    },
     "why": {
       "age": "Many schemes have an age range.",
       "gender": "Some schemes are only for women, or for transgender applicants.",
@@ -69,7 +87,7 @@
       "isDisabled": "Do you have a disability?",
       "disabilityPercentage": "Disability percentage",
       "isBPL": "Do you hold a Below Poverty Line (BPL) card?",
-      "landHoldingHectares": "Land you farm (hectares)",
+      "landHoldingHectares": "How much land do you farm?",
       "familySize": "People in your family"
     },
     "option": {

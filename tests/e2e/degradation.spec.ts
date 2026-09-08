@@ -13,6 +13,43 @@ import { expect, test } from '@playwright/test';
  */
 
 test.describe('with no AI provider configured', () => {
+  /**
+   * PRECONDITION: a server with no AI providers configured.
+   *
+   * These assertions are about what happens when the keys are absent, so a
+   * server that HAS them cannot exercise them — and, worse, the tests below
+   * would spend real Groq quota and real Sarvam credits calling providers in
+   * the expectation that they fail.
+   *
+   * Locally that is exactly what happens: .env.local supplies keys to
+   * `next start`. So the suite skips, loudly, rather than reporting red for an
+   * environment difference that is not a product defect.
+   *
+   * In CI it must never skip. There is no .env.local there, so a configured
+   * provider means the workflow changed and the reliability metric quietly
+   * stopped being tested — which is a worse failure than a red test.
+   */
+  test.beforeEach(async ({ request }) => {
+    const capabilities = (await (await request.get('/api/voice')).json()) as Record<
+      string,
+      boolean
+    >;
+    const configured =
+      capabilities.serverStt || capabilities.serverTts || capabilities.extraction;
+
+    if (!configured) return;
+
+    if (process.env.CI) {
+      throw new Error(
+        'the degradation suite requires a server with no AI providers configured, but this one reports ' + JSON.stringify(capabilities),
+      );
+    }
+
+    test.skip(
+      true,
+      'this server has AI keys (.env.local). Degradation needs a keyless server: run `pnpm test:e2e:degraded`.',
+    );
+  });
   test('says voice is unavailable instead of offering a dead control', async ({ page }) => {
     await page.goto('/en');
 

@@ -1,6 +1,20 @@
 import { defineConfig, devices } from '@playwright/test';
 
-const baseURL = process.env.E2E_BASE_URL ?? 'http://localhost:3000';
+/**
+ * Degraded mode: a server started with every AI key blanked.
+ *
+ * tests/e2e/degradation.spec.ts asserts what happens with no providers
+ * configured, which the normal local server cannot show — .env.local supplies
+ * real keys to `next start`. It runs on its own port so it can coexist with a
+ * server already holding 3000.
+ *
+ * CI needs none of this: no .env.local exists there, so the default server is
+ * already keyless.
+ */
+const degraded = Boolean(process.env.E2E_DEGRADED);
+const port = degraded ? 3101 : 3000;
+
+const baseURL = process.env.E2E_BASE_URL ?? `http://localhost:${port}`;
 
 /**
  * Which Chromium build to drive.
@@ -39,9 +53,16 @@ export default defineConfig({
   webServer: process.env.E2E_BASE_URL
     ? undefined
     : {
-        command: 'pnpm build && pnpm start',
+        command: degraded
+          ? `pnpm build && pnpm start -p ${port}`
+          : 'pnpm build && pnpm start',
         url: baseURL,
-        reuseExistingServer: !process.env.CI,
+        // Never reuse in degraded mode: the reused server would be the one
+        // holding real keys, and the suite would skip instead of running.
+        reuseExistingServer: !process.env.CI && !degraded,
         timeout: 180_000,
+        // @next/env does not overwrite variables already present in the
+        // environment, so blanking them here wins over .env.local.
+        env: degraded ? { GROQ_API_KEY: '', SARVAM_API_KEY: '' } : {},
       },
 });

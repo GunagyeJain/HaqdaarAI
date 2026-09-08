@@ -9,7 +9,7 @@ AI coding agent, so continuity lives here rather than in anyone's memory.
 
 ## Current State
 
-*Last updated 2026-09-08.*
+*Last updated 2026-09-08 (session 2: voice latency, provider budget, honest-inconclusive).*
 
 **Phases 0–5 complete. Phase 6 is complete except the deploy itself**, which
 needs the developer's Vercel and Neon accounts.
@@ -22,14 +22,21 @@ real 483-scheme corpus scraped from myscheme.gov.in.
 
 | Metric (proposal §6) | Target | Measured |
 |---|---|---|
-| Response latency | median ≤2s | **338ms** typed, p95 758ms |
-| Extraction accuracy | 0% hallucinated | **0** adversarial · **0** live, recall 90% |
+| Response latency | median ≤2s | **338ms** typed (p95 758ms) · **1210ms** voice (p95 1395ms) |
+| Extraction accuracy | 0% hallucinated | **0** adversarial (37) · **0** live (40), recall not recaptured |
 | Matching speed | <100ms | **52.9ms** server-side, 483 schemes |
 | Corpus coverage | ≥150 schemes | **483**, 98% with a modelled clause |
 | Reliability | graceful degradation | every fallback exercised |
 | Accessibility | WCAG 2.1 AA | clean, 5 locales, desktop + mobile |
 
-Suites: **243 unit/integration · 43 eval · 70 e2e.** All green.
+Suites: **243 unit/integration · 45 eval · 74 e2e.** All green.
+
+Local runs show skips, and they are honest ones rather than hidden failures:
+the degradation suite skips because .env.local gives this machine real keys
+(run `pnpm test:e2e:degraded` to exercise it — 8 passed), and the live
+extraction and voice-latency measurements skip as **inconclusive** whenever
+the Groq daily quota is spent. CI has no .env.local, so it runs degradation
+directly and skips the live halves instead.
 
 ### Local environment
 
@@ -42,6 +49,26 @@ Two environment quirks worth knowing before debugging something that is not
 broken: pnpm needs `node-linker=hoisted` here (Windows symlink locks), and this
 network blocks `cdn.playwright.dev`, so Playwright drives system Chrome locally
 via `PW_CHANNEL` while CI uses the bundled browser.
+
+### Provider budget — measured 2026-09-08, and tighter than assumed
+
+The two providers are economically different and it changes how the work is
+scheduled:
+
+| | Groq (extraction) | Sarvam (STT / TTS) |
+|---|---|---|
+| Free allowance | 200,000 tokens/day | ₹100 of credits |
+| Renews | **daily, forever** | **never** |
+| Measured unit cost | ~3,800–4,900 tokens per extraction | ₹30/hr audio · ₹30/10k chars |
+| Practical ceiling | **~40–50 extractions/day** | ~50 pilot sessions total |
+
+The per-call cost was assumed to be ~1,600 tokens and is not. **One full live
+eval pass consumes ~186,000 of the 200,000 daily tokens**, so an eval run and a
+day of pilot sessions cannot share a day. Plan them apart.
+
+Nothing breaks when either runs out: extraction degrades to the typed path, and
+Sarvam degrades to browser `SpeechRecognition`/`speechSynthesis`, which are free
+and unlimited. That ladder is invariant 2 and is covered by the degradation suite.
 
 ## Next Step
 
@@ -59,10 +86,16 @@ Then **Phase 7 — pilot** ([EVALUATION.md](EVALUATION.md) has the protocol).
    wrong. This is human review time, not engineering time.
 2. **Verify the scheduled scrape fires once.** The pipeline document treats an
    unverified re-scrape as a deployment blocker, and it is right.
-3. **Re-run the live extraction eval when quota resets.** Done once on
-   2026-09-08 (0 invented, 90% recall) but the free tier's 200k tokens/day was
-   then exhausted. The suite now reports **inconclusive** rather than passing
-   when rate-limited. Worth one clean confirming run before the pilot.
+3. **Recapture recall from a live eval run.** The 2026-09-08 run was
+   **conclusive on the gated metric** — all 40 transcripts, **0 invented
+   fields** — but its console output was discarded by the reporter, so the
+   recall figure was lost. Recall is reported, not gated, so nothing is blocked;
+   one clean pass with `--reporter=verbose` restores the number. Budget a whole
+   day of Groq quota for it.
+4. **Cap voice spend before the app is public.** Nothing rate-limits `/api/voice`
+   or `/api/tts` per visitor. On a public URL one person holding the mic button
+   can drain the ₹100 of Sarvam credit that the pilot needs, and Sarvam credits
+   do not renew. This is a deployment concern, not a pilot one.
 
 ### Known limitations, recorded rather than hidden
 
@@ -152,18 +185,20 @@ keys and proves the typed path is unaffected, capabilities are reported honestly
 and every provider failure degrades with an attributable reason.
 
 ### Phase 5 — Evaluation harness ✅
-- [x] 38-transcript golden set: code-mixed, Indic script, disfluency,
+- [x] 40-transcript golden set: code-mixed, Indic script, disfluency,
       self-correction, empty transcripts, and sensitive-field inference traps
 - [x] Grounding assertion (0% hallucinated fields) — CI-blocking, adversarial
 - [x] Latency measurement for the typed path, median + p95
-- [ ] Voice-path latency — **owed, needs provider credentials**
+- [x] Voice-path latency — **1210ms median, p95 1395ms** (browser-STT path);
+      the Sarvam server-STT hop stays unmeasured by choice ([ADR-013](DECISIONS.md#adr-013))
 - [x] `EXPLAIN ANALYZE` matcher benchmark, with a JIT-regression assertion
 - [x] Degradation E2E spec
 - [x] Corpus coverage gate, incl. source-prose presence (invariant 4)
 - [x] CI runs every gate on each push
 
-**Exit met for every metric except voice latency**, which is blocked on credentials
-and is reported as unmeasured rather than approximated from the typed figure.
+**Exit met for every metric.** Voice latency was the last gap and is now measured.
+The Sarvam STT hop within it stays unmeasured by choice, and is reported that way
+rather than approximated from a synthetic-audio run that would flatter it.
 
 ### Phase 6 — Design pass and deployment
 - [x] WCAG 2.1 AA, automated across all five locales, desktop and mobile
@@ -204,6 +239,10 @@ surprises, and things worth remembering go here:
 | 2026-09-07 | Pinned **TypeScript 5.9, not 7.0**. TS 7 (the Go-native compiler) is out but the ESLint/Next toolchain around it is young; a two-month build is not the place to absorb that. Revisit before deployment. |
 | 2026-09-07 | Next 16 renamed the `middleware` file convention to `proxy`. `src/proxy.ts` holds the next-intl handler; the import is still `next-intl/middleware`. |
 | 2026-09-07 | `vitest.config` must be `.mts` — as `.ts` it is loaded as CJS and warns on every run. |
+| 2026-09-08 | **A Groq extraction costs ~3,800–4,900 tokens, not the ~1,600 assumed.** One full live eval pass burns ~186k of the 200k daily free tier. The daily cap, not the per-minute one, is the binding constraint: ~40–50 extractions/day. |
+| 2026-09-08 | **A 429 arrives as a thrown `ProviderUnavailableError`, not a failed result.** `extractProfile` rethrows it deliberately, so the eval’s rate-limit counter never saw it and a throttled run reported FAILURE. Both the eval and the voice-latency harness now catch it and report **inconclusive**. Found by exhausting the real quota, not by reading the code. |
+| 2026-09-08 | **The degradation suite could never pass locally.** `next start` loads `.env.local`, so the local server always had real keys while the suite asserts their absence — and its assertions were spending real Groq and Sarvam budget calling providers expecting failure. `pnpm test:e2e:degraded` now starts a keyless server on port 3101. |
+| 2026-09-08 | Golden set is **40 transcripts**, 37 of them in adversarial scope (3 are `beyondGrounding`). Docs had said 38 in several places. |
 
 ---
 

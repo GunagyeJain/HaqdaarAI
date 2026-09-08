@@ -169,16 +169,38 @@ describe.skipIf(!hasLiveKey)('live: the configured model against the golden set'
     let recalled = 0;
     let expectedTotal = 0;
     let rateLimited = 0;
+    let completed = 0;
     const failures: string[] = [];
 
     for (const testCase of goldenSet) {
-      // Paced to the free tier's 8000 tokens/minute. Each call costs roughly
-      // 1600 tokens, so ~5 per minute is the ceiling; an unpaced loop reports a
-      // rate limit as if it were a model failure, and the bounded retry gets
-      // consumed by throttling rather than by the glitch it exists for.
+      // Paced for the free tier. An unpaced loop reports throttling as if it
+      // were a model failure, and the bounded retry gets consumed by rate
+      // limiting rather than by the glitch it exists for.
+      //
+      // MEASURED 2026-09-08: a call costs ~3,800-4,900 tokens, not the ~1,600
+      // originally assumed here. The binding constraint is therefore the
+      // 200,000 tokens/DAY cap, which one full pass over this golden set very
+      // nearly exhausts on its own — budget accordingly before running it.
       await new Promise((resolve) => setTimeout(resolve, 13_000));
 
-      const result = await extractProfile(groqLlm, testCase.transcript, testCase.locale);
+      let result;
+      try {
+        result = await extractProfile(groqLlm, testCase.transcript, testCase.locale);
+      } catch (error) {
+        // A 429 surfaces as ProviderUnavailableError, which extractProfile
+        // rethrows by design — an unavailable provider is a degraded mode, not
+        // a bad extraction. Without this catch the run dies on the first
+        // throttled call and reports a FAILURE, conflating "we could not
+        // measure" with "the model misbehaved". Found by a real quota
+        // exhaustion on 2026-09-08, not by reasoning about the code.
+        const message = error instanceof Error ? error.message : String(error);
+        if (/rate.?limit|429|quota/i.test(message)) {
+          rateLimited += 1;
+          failures.push(`${testCase.id}: rate limited`);
+          continue;
+        }
+        throw error;
+      }
       expectedTotal += fieldsOf(testCase.expected).length;
       if (!result.ok) {
         if (/rate.?limit|429/i.test(result.error)) rateLimited += 1;
@@ -186,6 +208,7 @@ describe.skipIf(!hasLiveKey)('live: the configured model against the golden set'
         continue;
       }
 
+      completed += 1;
       const supported = new Set(fieldsOf(testCase.expected));
       for (const field of fieldsOf(result.profile)) {
         if (supported.has(field)) recalled += 1;
@@ -202,8 +225,30 @@ describe.skipIf(!hasLiveKey)('live: the configured model against the golden set'
     );
     if (failures.length) console.log('    ' + failures.join('\n    '));
 
-    // Hallucination blocks; recall is reported because a missed field is safe.
+    console.log(
+      `    coverage: ${completed}/${goldenSet.length} transcripts reached the model`,
+    );
+
+    // A hallucination that WAS observed fails the run, rate limiting or not.
+    // Evidence of harm is never downgraded to "inconclusive".
     expect(invented).toBe(0);
+
+    // Absence of evidence is not evidence of absence. If the daily quota cut
+    // the run short, "0 invented" describes only the transcripts that actually
+    // reached the model — not the golden set. Reporting that as green is the
+    // exact failure this project exists to prevent, turned on our own
+    // evaluation: a confident verdict where the truth is UNKNOWN (invariant 6).
+    //
+    // So the run is marked INCONCLUSIVE. Deliberately not a failure — the
+    // model did nothing wrong; we simply could not observe it.
+    if (rateLimited > 0) {
+      const unmeasured = goldenSet.length - completed;
+      console.log(
+        `    INCONCLUSIVE: ${rateLimited} call(s) rate-limited, ${unmeasured} transcript(s) ` +
+          `never reached the model. Re-run when the Groq daily quota resets.`,
+      );
+      context.skip();
+    }
   }, 900_000);
 });
 

@@ -324,3 +324,49 @@ boxes and can clear them — and the pilot should watch specifically for whether
 **Method note.** This was found because the eval runs against the live model, not only against the
 adversarial stub. The adversarial half tests our defence and passed throughout; only real inference
 produced this particular failure. Both halves are needed, and neither substitutes for the other.
+
+---
+
+## ADR-013 — Measure the voice path where it is free, and say what is not measured
+
+**Date:** 2026-09-08 · **Status:** Accepted · **Completes:** Phase 5
+
+**Context.** Voice-path latency was the last unmeasured metric in proposal §6.1. It had been
+blocked on provider credentials; once those existed, a second constraint appeared that is
+structural rather than temporary.
+
+The two providers have very different economics, and the difference decides the design:
+
+| | Groq (extraction) | Sarvam (STT / TTS) |
+|---|---|---|
+| Free allowance | 200,000 tokens/day | ₹100 of credits |
+| Renews | **daily, indefinitely** | **never** |
+| On exhaustion | resumes tomorrow | requests fail until topped up |
+
+A harness that spends a renewing daily allowance costs nothing. A harness that spends a one-time
+grant is drawing down a fixed budget that the pilot also needs.
+
+**Decision.** The voice-latency harness measures the **browser-STT configuration** by default:
+the client transcribes locally with `SpeechRecognition`, POSTs the transcript, and the server
+performs extraction and matching. The Sarvam server-STT hop is implemented behind
+`VOICE_LATENCY_AUDIO=1` and is **off by default**.
+
+**Reasoning.** This is not a shortcut around the measurement. Browser STT is rung two of the
+fallback ladder in `src/components/voice-console.tsx` — a configuration real users run, exercised
+by the degradation suite, and the one that keeps working for free after Sarvam's credits are gone.
+Measuring it is measuring a real production path, not a proxy for one.
+
+The reason to keep the audio stage available but disabled is honesty about what it would prove.
+Synthesised speech is *cleaner* than a citizen on a mid-range phone in a noisy room: Bulbul
+produces studio-clear audio with no crosstalk, no clipping and no regional accent Saaras was not
+tuned for. An STT figure obtained that way is a **floor**, not a representative measurement. It
+would look like a result while quietly being an optimistic one — and reporting an optimistic
+number as a measured one is the failure mode this project's evaluation exists to avoid.
+
+**What is therefore claimed, and what is not.** The voice turn is measured at **median 1210ms,
+p95 1395ms** (extraction 1125ms, matching 78ms) against a 2000ms target. That figure covers the
+browser-STT path. The Sarvam-STT path adds one network hop that **remains unmeasured**, and the
+metric table says so rather than extrapolating.
+
+**The pilot produces the honest STT number**, because it is the first time real people speak real
+sentences into real microphones. That is the only measurement of a speech system that means much.

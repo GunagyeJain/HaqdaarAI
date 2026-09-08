@@ -36,6 +36,12 @@ export async function POST(request: Request) {
     ? (localeParam as Locale)
     : routing.defaultLocale;
 
+  // Stage timings, surfaced as Server-Timing below so a latency regression is
+  // attributable to the stage that caused it rather than merely visible in the
+  // total. docs/EVALUATION.md asks for spans, not one opaque duration.
+  let sttMs = 0;
+  let extractMs = 0;
+
   let transcript: string;
 
   try {
@@ -56,15 +62,19 @@ export async function POST(request: Request) {
       }
 
       const stt = getSttProvider();
+      const sttStarted = performance.now();
       transcript = await withTimeout(
         stt.transcribe(audio, contentType || 'audio/webm', locale),
         PROVIDER_TIMEOUT_MS,
         'stt',
       );
+      sttMs = performance.now() - sttStarted;
     }
   } catch (error) {
-    return degraded(error, 'stt');
+    return degraded(error, 'stt', sttMs, extractMs);
   }
+
+  const extractStarted = performance.now();
 
   try {
     const llm = getLlmProvider();
@@ -73,21 +83,51 @@ export async function POST(request: Request) {
       PROVIDER_TIMEOUT_MS * 2,
       'llm',
     );
+    extractMs = performance.now() - extractStarted;
 
     if (!extraction.ok) {
-      return Response.json({ transcript, error: extraction.error, stage: 'extract' }, { status: 502 });
+      return Response.json(
+        { transcript, error: extraction.error, stage: 'extract' },
+        { status: 502, headers: serverTiming(sttMs, extractMs) },
+      );
     }
 
-    return Response.json({
-      transcript,
-      // Suggestions. The client must render these as editable, unconfirmed
-      // values — see invariant 3.
-      suggested: extraction.profile,
-      dropped: extraction.dropped,
-    });
+    return Response.json(
+      {
+        transcript,
+        // Suggestions. The client must render these as editable, unconfirmed
+        // values — see invariant 3.
+        suggested: extraction.profile,
+        dropped: extraction.dropped,
+      },
+      { headers: serverTiming(sttMs, extractMs) },
+    );
   } catch (error) {
-    return degraded(error, 'extract', transcript);
+    // Elapsed-until-failure, not zero: a 4s timeout and an instant
+    // "no API key" are both 503s, and the duration is what tells them apart.
+    extractMs = performance.now() - extractStarted;
+    return degraded(error, 'extract', sttMs, extractMs, transcript);
   }
+}
+
+/**
+ * Per-stage spans as the standard `Server-Timing` header.
+ *
+ * Standard means browser devtools renders it, so this is production
+ * instrumentation that the latency harness also reads — not test scaffolding
+ * bolted onto a route.
+ *
+ * `stt;dur=0` is meaningful rather than missing data: it says the browser
+ * transcribed locally (SpeechRecognition) and the server STT hop never
+ * happened at all.
+ */
+function serverTiming(sttMs: number, extractMs: number): Record<string, string> {
+  return {
+    'Server-Timing': [
+      `stt;dur=${sttMs.toFixed(1)}`,
+      `extract;dur=${extractMs.toFixed(1)}`,
+    ].join(', '),
+  };
 }
 
 /**
@@ -95,7 +135,13 @@ export async function POST(request: Request) {
  * with the stage and reason rather than as an opaque 500. The client uses this
  * to fall back rather than to show an error the citizen can do nothing about.
  */
-function degraded(error: unknown, stage: string, transcript?: string) {
+function degraded(
+  error: unknown,
+  stage: string,
+  sttMs: number,
+  extractMs: number,
+  transcript?: string,
+) {
   const unavailable = error instanceof ProviderUnavailableError;
 
   if (!unavailable) {
@@ -109,6 +155,9 @@ function degraded(error: unknown, stage: string, transcript?: string) {
       error: error instanceof Error ? error.message : 'voice pipeline failed',
       degraded: true,
     },
-    { status: 503 },
+    // Emitted on the failure path too, so a stage that timed out is
+    // distinguishable from one that never started — and so the header is
+    // reliably present rather than present only when things went well.
+    { status: 503, headers: serverTiming(sttMs, extractMs) },
   );
 }

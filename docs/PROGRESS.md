@@ -9,7 +9,7 @@ AI coding agent, so continuity lives here rather than in anyone's memory.
 
 ## Current State
 
-*Last updated 2026-09-08 (session 3: second corpus audit, finding F8, renormalize idempotence).*
+*Last updated 2026-09-08 (session 4: Phase 7 interface revamp).*
 
 The application works end to end. A citizen completes a profile — by typing, or
 by speaking — in any of five languages and receives an explained match against a
@@ -27,7 +27,7 @@ real corpus scraped from myscheme.gov.in — 483 schemes locally,
 | Reliability | graceful degradation | every fallback exercised |
 | Accessibility | WCAG 2.1 AA | clean, 5 locales, desktop + mobile |
 
-Suites: **310 unit/integration · 45 eval · 74 e2e.** All green.
+Suites: **348 unit/integration · 45 eval · 121 e2e · 8 degraded.** All green.
 
 Local runs show skips, and they are honest ones rather than hidden failures:
 the degradation suite skips because .env.local gives this machine real keys
@@ -75,18 +75,20 @@ and unlimited. That ladder is invariant 2 and is covered by the degradation suit
 
 Next, in order:
 
-1. **Push session 3 and renormalize production.** The F8 fix is committed
-   locally and **production does not have it**: the scheduled scrape ran from
-   `27b7fc3`, so all 506 production schemes were re-derived by the buggy
-   normaliser and the ₹39 income ceilings are live right now. Push, let Vercel
-   deploy, then run `pnpm db:renormalize` with `DATABASE_URL` pointed at Neon
-   — the script reads stored prose, so no re-scrape is needed. **This is the
-   highest-priority item on the list**, ahead of any interface work.
-2. **Phase 7 — Interface.** A full revamp, before the pilot rather than after,
-   because testers judge what they see and would otherwise give feedback about
-   the form instead of the matching.
-3. **Re-measure voice latency in production** once the Groq quota resets. It is
-   currently reported as inconclusive, which is honest but incomplete.
+1. **Push and renormalize production.** The F8 fix and the whole of Phase 7 are
+   committed on `phase-7-interface` and **production has neither**: the
+   scheduled scrape ran from `27b7fc3`, so all 506 production schemes were
+   re-derived by the buggy normaliser and the ₹39 income ceilings are live now.
+   Merge, let Vercel deploy, then run `pnpm db:renormalize` with `DATABASE_URL`
+   pointed at Neon — the script reads stored prose, so no re-scrape is needed.
+   **Still the highest-priority item on the list.**
+2. **Run the mobile project in CI.** `ci.yml` runs `--project=chromium` only, so
+   the mobile project has never run there. A test asserting a desktop-only
+   element on a phone sat failing unnoticed, and the horizontal-overflow defect
+   below was invisible to every gate. One flag closes both.
+3. **Re-measure production latency and voice latency** once deployed and once
+   the Groq quota resets. The results page now renders more per card, so the
+   §6.1 number is worth re-taking rather than assumed unchanged.
 
 Then **Phase 8 — pilot** ([EVALUATION.md](EVALUATION.md) has the protocol).
 
@@ -262,58 +264,59 @@ rather than approximated from a synthetic-audio run that would flatter it.
 **Exit met.** Live, all metrics re-verified on real infrastructure, and the
 weekly refresh proven to run end to end rather than merely to exist as a file.
 
-### Phase 7 — Interface
+### Phase 7 — Interface ✅
 
-The application is correct and honest, and it looks like a form. The developer’s
-assessment, and it is right: **generic, AI-generated, no identity of its own.**
-A tool that asks people for their caste, income and disability status has to look
-like something they can trust, and trust is partly visual.
+The application was correct and honest and it read like a survey. This phase
+made it readable by the person it was built for: someone who may not read
+confidently, on a mid-range Android, unsure whether they are allowed to be
+asking at all.
 
-This phase comes **before** the pilot deliberately. Testers judge what they see,
-and shipping the current interface would collect feedback about the form rather
-than about the matching.
+Spec: [2026-09-08-interface-revamp-design.md](superpowers/specs/2026-09-08-interface-revamp-design.md).
+Plan: [2026-09-08-interface-revamp.md](superpowers/plans/2026-09-08-interface-revamp.md).
 
-**What is actually wrong, from a production screenshot rather than by taste:**
+**Three of the seven recorded defects were already fixed** before this phase
+began, and the checklist had gone stale on them: the typeface (Figtree with a
+per-locale Noto face), the mark (an open doorway), and the palette (terracotta
+on cream, not default blue). Two more — the sticky-bar fade and the "Not
+answered" prominence — were fixed during the phase before it started, which is
+why the list below differs from the one it replaced.
 
-- [ ] **The sticky action bar slices through form fields.** The `sticky
-      bottom-0` bar in `profile-form.tsx:209` is opaque with a hard top border,
-      so mid-scroll it cuts "What you do" and "Highest education" in half with
-      no fade or affordance that content continues beneath it.
-      *Checked before claiming worse: no content is lost, and keyboard focus
-      scrolls clear of the bar rather than landing under it. So this is a
-      visual defect, not a functional one* — it looks broken without being
-      broken, which is still worth fixing.
-- [ ] **No typeface is chosen at all.** `layout.tsx` sets only `antialiased`;
-      everything renders in the browser default. That single fact accounts for
-      much of the generic feel. Whatever is chosen **must cover Devanagari,
-      Gurmukhi, Bengali and Tamil** — a Latin-only font silently falls back
-      to system defaults in four of the five locales, which is worse than now.
-- [ ] **The brand colour is default Tailwind blue.** The most recognisable
-      "generated by an AI" tell there is.
-- [ ] **No mark, no wordmark treatment.** "Haqdaar.ai" is 16px semibold text.
-      The name means *one who is rightfully entitled* and deserves better.
-- [ ] **A hierarchy inversion.** The "Not answered" pills are solid brand blue,
-      making the *absence of an answer* the most visually prominent thing on the
-      page. UNKNOWN is a first-class verdict (invariant 6), but that is an
-      argument for showing it honestly, not loudly.
-- [ ] **Sixteen identical fields in a flat wall**, with no grouping, no
-      progressive disclosure and no sense of progress beyond "2 of 16 answered".
-- [ ] **Dead space.** `max-w-5xl` two-column on desktop leaves the results
-      column empty until submit, so first impression is half a screen of nothing.
+- [x] **Dead space.** The results had a column that stood empty until submit,
+      so desktop opened on half a screen of nothing. They now have a route of
+      their own at `/[locale]/results`.
+- [x] **Sixteen identical fields in a flat wall.** Five grouped steps, easiest
+      first, sensitive questions last and framed as opening schemes rather than
+      gating them. Every field says why it is asked; every step says a blank is
+      never a no.
+- [x] **The sticky action bar slices through fields.** Fixed earlier; the
+      gradient fade is in place and kept.
+- [x] **"Not answered" hierarchy inversion.** Fixed earlier as prominence, and
+      fixed again here for a different defect: in dark mode the chip sat at
+      lab L 1.63 beneath a 3.35 page, so choosing it made it recede.
+- [x] **Light is the default theme**, and the device no longer decides.
+- [x] **Switching language no longer discards the chosen theme.**
+- [x] **Ground and controls change theme together.**
+- [x] **Results are readable.** Narrowing questions, then a shortlist, then the
+      long tail collapsed. See the decision log.
+- [x] **Land can be given in bigha, acres or square feet**, with the local
+      meaning of bigha chosen by the citizen and never inferred.
+- [x] **Illustrations**: four drawn scenes, no faces, no text, both themes.
+- [ ] **Scheme names and prose are still English.** Knowingly deferred, not
+      forgotten — see "Owed before the pilot".
 
-**Constraints the revamp must not break** — these are gates, not preferences:
+**Constraints held throughout** — gates, not preferences:
 
-- WCAG 2.1 AA, verified automatically across five locales, desktop and mobile.
-  The tokens in `globals.css` were derived from contrast requirements; a new
-  palette must clear the same bar and `accessibility.spec.ts` must stay green.
-- 44px touch targets, keyboard reachability, visible focus, reduced-motion.
+- WCAG 2.1 AA across five locales, desktop and mobile. **28 accessibility
+  assertions green**, including two new ones that would have caught the
+  horizontal-overflow defect described in the decision log.
+- 44px touch targets, keyboard reachability, visible focus, reduced motion.
 - Verdict colour is never the only signal.
-- Five locales, including scripts with taller line boxes than Latin.
-- The typed path must remain complete and usable with every AI provider off.
+- The typed path complete with every AI provider off, proven by the degradation
+  suite walking the whole new five-step flow.
 
-**Exit:** a distinctive interface that a stranger would not identify as
-template output, with every accessibility gate still green and the e2e suite
-passing unchanged.
+**Exit met.** Suites: **348 unit/integration · 121 e2e · 8 degraded**, all
+green. The e2e count is up from 74 because the form, the results and the
+overflow now have their own specs.
 
 ### Phase 8 — Pilot
 - [ ] Recruit testers beyond the CS cohort, including non-English speakers
@@ -350,6 +353,12 @@ surprises, and things worth remembering go here:
 | 2026-09-08 | **`vercel.json` pinning `sin1` cut production latency 5.2x**, 2686ms to 512ms. One line, one region. |
 | 2026-09-08 | **A monthly income limit was stored as an annual one** — "monthly income of ₹15,000 or below" became `annualIncome < 15000`, wrongly excluding everyone earning ₹15,001–₹1,80,000 a year, which is the whole population such schemes are for. 28 schemes affected. Found by reading fifteen schemes beside their prose; no automated gate could have caught it, because the number was right and only its period was wrong. |
 | 2026-09-08 | **`groundRuleTree` never called `isGrounded`** — it carried an inlined copy of the same rule, so the exported function was dead code and strengthening it changed nothing in the pipeline. A safety gate with two implementations, one of which never runs, can be improved in the wrong copy and look improved. Now one definition. |
+| 2026-09-08 | **Zero PASS verdicts is correct, so the results page stopped leading with it.** ~60% of corpus clauses are WILDCARD and a wildcard is UNKNOWN forever, so most schemes cannot reach PASS however much a citizen answers. Leading with "you qualify for N" leads with a number that is almost always zero — accurate, useless, and easily read as a rejection of the person rather than a limit of the tool. The page now leads with a shortlist: everything checkable passed, only human verification left. Measured at 22 schemes for a sparse profile. |
+| 2026-09-08 | **The results page scrolled sideways on a phone, and nothing measured it.** Card reasons sit in a grid; a grid item's automatic minimum is its min-content width; the government prose we quote carries raw URLs. One unbreakable token widened a card to 600px inside a 412px phone, Chromium scaled the page to fit, and every line of text got smaller for a reader who may already have low vision. `overflow-wrap: break-word` does NOT fix it — it wraps visually without reducing min-content. The grid items need `min-w-0`. Surfaced only as a Playwright click timing out. |
+| 2026-09-08 | **A selected "not answered" chip receded in dark mode.** It used surface-sunken, which on the dark palette is darker than both the chips beside it and the page ground — lab L 1.63 against a 3.35 page. Inset reads as "chosen" on cream and as a hole on near-black. The general lesson: a depth metaphor that works in one theme can invert in the other. |
+| 2026-09-08 | **Reading `searchParams` in a page flips it from static to dynamic.** Showing the expiry notice server-side turned `/[locale]` — the landing page — into a server-rendered route, which is the same cost that ruled out reading a theme cookie in the layout. Caught in the build output, not by reasoning. The notice reads the parameter client-side. |
+| 2026-09-08 | **Bigha is offered but never silently converted.** UP varies 4x against itself, Punjab runs six regional revenue systems, Rajasthan's pucca and kaccha differ 1.6x. Since `landHoldingHectares` feeds "under 2 hectares" ceilings on small-farmer schemes, a wrong factor is a false negative on exactly the people those schemes exist for. The state selects which meanings to OFFER; the citizen picks theirs; the result is echoed back in acres to check. |
+| 2026-09-08 | **CI runs `--project=chromium` only**, so the mobile project has never run there. A `typed-journey` test asserting a `hidden lg:block` element had been failing on mobile unnoticed while CI stayed green. |
 | 2026-09-08 | **The scheduled scrape is verified.** Run 34211965790 green in 23m34s; production is 506 schemes, 97% modelled. The earlier same-day dispatch had reported failure while succeeding — the scrape worked, the post-scrape verification blew a 10s hook budget inserting fixtures one row at a time against Neon. A weekly job that cries wolf is worse than no job. |
 | 2026-09-08 | **An escaped apostrophe was an income ceiling.** `&#39;` contains the digits 3 and 9, the income builders took the first number in the bullet, and 26 schemes were stored with `annualIncome <= 39` — a limit nobody is under, so each failed every applicant. Grounding passed it because "39" is genuinely in the text. Found by the second audit sample, which is the entire argument for having taken one. |
 | 2026-09-08 | **`db:renormalize` had always reported every scheme as changed.** Postgres normalizes JSONB key order, so comparing `JSON.stringify` of a stored tree against a freshly built one never matched. The metric was always the row count. Fixed the same day it was needed: the very next run reported 26, and 26 was the finding. |

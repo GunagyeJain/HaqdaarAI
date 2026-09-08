@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { completeForm } from './support/form';
 
 /**
  * DEGRADATION — proposal §6.2 "Reliability", pipeline Phase 4.
@@ -62,16 +63,15 @@ test.describe('with no AI provider configured', () => {
   });
 
   test('the typed path is completely unaffected', async ({ page }) => {
-    await page.goto('/en');
-
-    await page.locator('#input-age').fill('42');
-    await page.locator('#input-state').selectOption('PB');
-    await page.getByRole('button', { name: 'Find my schemes' }).click();
+    // The whole five-step walk, the narrowing, and the list -- with every
+    // provider off. This is invariant 2 as an executable claim.
+    await completeForm(page, { age: '42', state: 'PB' });
 
     await expect(page.getByRole('heading', { name: 'What we found' })).toBeVisible({
       timeout: 20_000,
     });
     await expect(page.getByText(/out of \d+ schemes checked/)).toBeVisible();
+    await expect(page.getByRole('heading', { name: /schemes worth your time/ })).toBeVisible();
   });
 
   test('the voice endpoint reports its capabilities honestly', async ({ request }) => {

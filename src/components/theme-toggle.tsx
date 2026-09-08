@@ -1,7 +1,7 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import { useSyncExternalStore } from 'react';
+import { useEffect, useSyncExternalStore } from 'react';
 
 /**
  * Light / dark switch.
@@ -88,6 +88,24 @@ const getServerSnapshot = (): undefined => undefined;
 export function ThemeToggle() {
   const t = useTranslations('app');
   const choice = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+
+  /**
+   * Re-assert the attribute, because something else removes it.
+   *
+   * Switching language is a client navigation to a different [locale] segment,
+   * which re-renders <html> from server markup that carries no data-theme --
+   * the pre-paint script in <head> does not run again on a client navigation.
+   * Measured, not assumed: after the switch the attribute read back as null,
+   * so a reader who had chosen dark was quietly returned to the default.
+   *
+   * A cookie rendered server-side would fix this without an effect, and was
+   * rejected: reading cookies() in the locale layout opts every route out of
+   * static rendering, which costs more than these three lines save.
+   */
+  useEffect(() => {
+    if (choice === undefined) return;
+    document.documentElement.dataset.theme = choice;
+  }, [choice]);
 
   const apply = (next: Choice) => {
     document.documentElement.dataset.theme = next;

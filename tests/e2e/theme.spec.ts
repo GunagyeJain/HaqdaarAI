@@ -188,4 +188,39 @@ test.describe('theme switch', () => {
     expect(lightness.chosen).toBeGreaterThan(lightness.ground);
     expect(lightness.chosen).toBeGreaterThan(lightness.other);
   });
+  test('switching language keeps the chosen theme', async ({ page }) => {
+    /**
+     * Reported from use: choosing a different language put the reader into dark
+     * mode. Switching locale is a client navigation that re-renders <html> from
+     * server markup carrying no data-theme, so an explicit choice was dropped.
+     *
+     * Since light is now the floor, dropping it no longer lands in dark -- but
+     * it still silently discards a choice, which is the actual defect.
+     */
+    await page.goto('/en');
+    await page.getByRole('button', { name: 'Switch to dark mode' }).click();
+    expect((await themeOf(page)).attr).toBe('dark');
+
+    await page.getByLabel('Language').selectOption('hi');
+    await expect(page).toHaveURL(/\/hi/);
+
+    expect((await themeOf(page)).attr).toBe('dark');
+  });
+
+  test('switching language keeps light light', async ({ browser }) => {
+    const context = await browser.newContext({ colorScheme: 'dark' });
+    const page = await context.newPage();
+    await page.goto('/en');
+    expect((await themeOf(page)).attr).toBe('light');
+
+    await page.getByLabel('Language').selectOption('ta');
+    await expect(page).toHaveURL(/\/ta/);
+
+    const { attr, lightness } = await themeOf(page);
+    expect(attr).toBe('light');
+    expect(lightness).toBeGreaterThan(80);
+
+    await context.close();
+  });
+
 });

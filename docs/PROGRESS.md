@@ -9,14 +9,12 @@ AI coding agent, so continuity lives here rather than in anyone's memory.
 
 ## Current State
 
-*Last updated 2026-09-08 (session 2: voice latency, provider budget, honest-inconclusive).*
-
-needs the developer’s Vercel and Neon accounts.
-needs the developer's Vercel and Neon accounts.
+*Last updated 2026-09-08 (session 3: second corpus audit, finding F8, renormalize idempotence).*
 
 The application works end to end. A citizen completes a profile — by typing, or
 by speaking — in any of five languages and receives an explained match against a
-real 483-scheme corpus scraped from myscheme.gov.in.
+real corpus scraped from myscheme.gov.in — 483 schemes locally,
+**506 in production** since the scheduled refresh was verified.
 
 ### Verified numbers
 
@@ -25,11 +23,11 @@ real 483-scheme corpus scraped from myscheme.gov.in.
 | Response latency | median ≤2s | local **338ms** · voice **1210ms** · **production 512ms** (p95 1111ms) |
 | Extraction accuracy | 0% hallucinated | **0** adversarial (37) · **0** live (40), recall not recaptured |
 | Matching speed | <100ms | **52.9ms** server-side, 483 schemes |
-| Corpus coverage | ≥150 schemes | **483**, 98% with a modelled clause |
+| Corpus coverage | ≥150 schemes | **506 in production**, 97% with a modelled clause |
 | Reliability | graceful degradation | every fallback exercised |
 | Accessibility | WCAG 2.1 AA | clean, 5 locales, desktop + mobile |
 
-Suites: **243 unit/integration · 45 eval · 74 e2e.** All green.
+Suites: **310 unit/integration · 45 eval · 74 e2e.** All green.
 
 Local runs show skips, and they are honest ones rather than hidden failures:
 the degradation suite skips because .env.local gives this machine real keys
@@ -77,10 +75,13 @@ and unlimited. That ladder is invariant 2 and is covered by the degradation suit
 
 Next, in order:
 
-1. **Verify the scheduled scrape fires once** — the last deployment blocker.
-   The `DATABASE_URL` secret and the workflow are both in place; it has simply
-   never been dispatched. `gh workflow run "Refresh scheme corpus"`, then watch
-   it finish. It upserts, so it cannot destroy the corpus.
+1. **Push session 3 and renormalize production.** The F8 fix is committed
+   locally and **production does not have it**: the scheduled scrape ran from
+   `27b7fc3`, so all 506 production schemes were re-derived by the buggy
+   normaliser and the ₹39 income ceilings are live right now. Push, let Vercel
+   deploy, then run `pnpm db:renormalize` with `DATABASE_URL` pointed at Neon
+   — the script reads stored prose, so no re-scrape is needed. **This is the
+   highest-priority item on the list**, ahead of any interface work.
 2. **Phase 7 — Interface.** A full revamp, before the pilot rather than after,
    because testers judge what they see and would otherwise give feedback about
    the form instead of the matching.
@@ -91,14 +92,32 @@ Then **Phase 8 — pilot** ([EVALUATION.md](EVALUATION.md) has the protocol).
 
 ### Owed before the pilot — do not quietly drop these
 
-1. **Human sign-off on the corpus audit** ([AUDIT.md](AUDIT.md)). A first pass
-   is done and found real defects — F1 is fixed, F2 to F7 are recorded and open.
-   What is owed is a person reading the findings, because the pass was made by
-   the same agent that wrote the code it was auditing. Re-run with
-   `pnpm audit:sample 15 1`; a second sample under a different seed is also owed,
-   since fifteen schemes prove defects exist and cannot bound them.
-2. **Verify the scheduled scrape fires once.** The pipeline document treats an
-   unverified re-scrape as a deployment blocker, and it is right.
+1. **Human sign-off on the corpus audit** ([AUDIT.md](AUDIT.md)). **Two** samples
+   are now done (seeds 1 and 2) and between them found ten defect classes.
+   F1, F2, F4, F5 and F8 are fixed; F3, F6, F7, F9 and F10 are open. What is
+   still owed is **a person reading the findings**, because both passes were
+   made by the same agent that wrote the code they audit — that is the whole
+   reason the item exists and no amount of further self-auditing discharges it.
+   Reproduce with `pnpm audit:sample 15 1` and `pnpm audit:sample 15 2`.
+
+   **The second sample did not flatten the curve**, which is the argument for a
+   third: fourteen new schemes produced four new findings, two of them
+   Severity 1, and one (F8) was systematic across 26 schemes — more widespread
+   than F1 and strictly more harmful. Thirty schemes is 6% of the corpus and
+   says nothing about the other 94%.
+
+   **F9 is the most severe open finding.** A comma-separated list of eligible
+   groups ("General, SC, ST categories, SHG members, PWD, Women, and
+   Transgender") becomes a requirement to be all of them simultaneously.
+2. ~~**Verify the scheduled scrape fires once.**~~ **Done 2026-09-08.** Run
+   [34211965790](https://github.com/GunagyeJain/HaqdaarAI/actions/runs/34211965790)
+   completed green in 23m34s, every step including the post-scrape verification.
+   Production is now **506 schemes, 493 of them carrying a modelled clause (97%)**.
+
+   The first dispatch, earlier the same day, had reported failure while the
+   scrape itself succeeded — `match-schemes.test.ts` inserted fixtures one row
+   at a time and blew a 10s hook budget against Neon. Fixed at the cause in
+   `9f2e262`; this run is the verification of that fix.
 3. **Recapture recall from a live eval run.** The 2026-09-08 run was
    **conclusive on the gated metric** — all 40 transcripts, **0 invented
    fields** — but its console output was discarded by the reporter, so the
@@ -223,7 +242,7 @@ and every provider failure degrades with an attributable reason.
 The Sarvam STT hop within it stays unmeasured by choice, and is reported that way
 rather than approximated from a synthetic-audio run that would flatter it.
 
-### Phase 6 — Design pass and deployment
+### Phase 6 — Design pass and deployment ✅
 - [x] WCAG 2.1 AA, automated across all five locales, desktop and mobile
 - [x] 44px touch targets, keyboard reachability, visible focus, reduced-motion
 - [x] Verdict colour never the only signal
@@ -232,13 +251,16 @@ rather than approximated from a synthetic-audio run that would flatter it.
 - [x] Scheduled re-scrape workflow written
 - [x] [DEPLOYMENT.md](DEPLOYMENT.md) — hosting, environment, post-deploy checks
 - [x] **Deploy to Vercel + Neon** — live at https://haqdaar-ai.vercel.app, full 483-scheme corpus
-- [ ] **Verify the scheduled scrape fires once** — deployment blocker
+- [x] **Verify the scheduled scrape fires once** — done 2026-09-08, run
+      [34211965790](https://github.com/GunagyeJain/HaqdaarAI/actions/runs/34211965790)
+      green in 23m34s. Production corpus 506 schemes, 97% modelled.
 - [x] Re-run all metrics against production — **512ms median, p95 1111ms**, inside
       the 2s budget. Got there via a real failure: the first deployment ran
       functions in `iad1` with the database in Singapore and measured 2686ms
       ([EVALUATION.md](EVALUATION.md) keeps all three numbers)
 
-**Exit:** live, and all metrics re-verified on real infrastructure.
+**Exit met.** Live, all metrics re-verified on real infrastructure, and the
+weekly refresh proven to run end to end rather than merely to exist as a file.
 
 ### Phase 7 — Interface
 
@@ -328,6 +350,10 @@ surprises, and things worth remembering go here:
 | 2026-09-08 | **`vercel.json` pinning `sin1` cut production latency 5.2x**, 2686ms to 512ms. One line, one region. |
 | 2026-09-08 | **A monthly income limit was stored as an annual one** — "monthly income of ₹15,000 or below" became `annualIncome < 15000`, wrongly excluding everyone earning ₹15,001–₹1,80,000 a year, which is the whole population such schemes are for. 28 schemes affected. Found by reading fifteen schemes beside their prose; no automated gate could have caught it, because the number was right and only its period was wrong. |
 | 2026-09-08 | **`groundRuleTree` never called `isGrounded`** — it carried an inlined copy of the same rule, so the exported function was dead code and strengthening it changed nothing in the pipeline. A safety gate with two implementations, one of which never runs, can be improved in the wrong copy and look improved. Now one definition. |
+| 2026-09-08 | **The scheduled scrape is verified.** Run 34211965790 green in 23m34s; production is 506 schemes, 97% modelled. The earlier same-day dispatch had reported failure while succeeding — the scrape worked, the post-scrape verification blew a 10s hook budget inserting fixtures one row at a time against Neon. A weekly job that cries wolf is worse than no job. |
+| 2026-09-08 | **An escaped apostrophe was an income ceiling.** `&#39;` contains the digits 3 and 9, the income builders took the first number in the bullet, and 26 schemes were stored with `annualIncome <= 39` — a limit nobody is under, so each failed every applicant. Grounding passed it because "39" is genuinely in the text. Found by the second audit sample, which is the entire argument for having taken one. |
+| 2026-09-08 | **`db:renormalize` had always reported every scheme as changed.** Postgres normalizes JSONB key order, so comparing `JSON.stringify` of a stored tree against a freshly built one never matched. The metric was always the row count. Fixed the same day it was needed: the very next run reported 26, and 26 was the finding. |
+| 2026-09-08 | **Measuring a fix caught a defect in the fix**, for the second time in a day. Anchoring income bounds to a currency marker discarded 15 sound ceilings, because this corpus writes `₹ 2,00,000` with a space after the symbol and only the `Rs` branch tolerated one. Net cost after correction: 2 clauses. Reasoning about the corpus would not have found this; running against it did. |
 | 2026-09-08 | The e2e suite ran parallel workers against a single deployment and measured its own contention — two accessibility scans timed out at 30s, then passed in 10s and 8.6s alone. A run against `E2E_BASE_URL` now uses one worker. |
 
 ---

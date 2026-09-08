@@ -124,7 +124,7 @@ on a limit that was never meant to apply to them.
 
 Less harmful: a citizen is shown a scheme they will be turned away from later. Still wrong.
 
-### F4. An upper age bound is silently dropped
+### F4. An upper age bound is silently dropped · FIXED
 
 `gspv` (Subsidy for Procurement of Vehicle).
 
@@ -136,6 +136,24 @@ age gte 18
 
 The `between` operator exists and is used correctly elsewhere (`mrcbspbocwwb` parses "between 18
 and 60 years"). This phrasing simply is not handled, and half the constraint vanished.
+
+**Fixed 2026-09-08.** The cause was ordering rather than a missing operator. `not less than 18
+years` matched first and claimed the age field, so the upper bound was never tried — the
+patterns are ordered most-specific-first exactly to avoid this, and a paired form was missing
+from the front of the list. `gspv` now reads `age between 18 and 50`, so a 60-year-old is
+correctly told no rather than shown a scheme that stops at 50.
+
+Two phrasings occur in the corpus and both are handled: *"...or more than 50 years of age"* and
+*"...and not more than 45 years"*.
+
+**A guard came with it.** An inverted range — *"not less than 50 years or more than 18 years"* —
+is a data error rather than a criterion. Left alone the lower bound would match on its own and
+assert `age >= 50`: half of a contradictory sentence, picked arbitrarily, and capable of
+excluding someone who qualifies. Such a bullet is now UNKNOWN in full. No scheme in the corpus
+states one today, which is the point of writing the guard before one does.
+
+Only two schemes were affected, and that is worth stating plainly: this was the cheapest of the
+remaining findings, not the most valuable.
 
 ---
 
@@ -225,7 +243,12 @@ schemes this project exists to surface.
 - [ ] **The slash is handled; the word "or" is still blunt.** "SC or ST category" wildcards the
       whole bullet, while "SC/ST category" resolves to `category in [sc, st]`. The second is
       better, and the word-based guard could learn the same trick.
-- [ ] Decide on F3, F4 and the Severity 3 disappearances.
+- [x] ~~Decide on F4.~~ Fixed 2026-09-08.
+- [ ] **Decide on F3 and the Severity 3 disappearances.** Both need a judgement about what the
+      prose means rather than a parser change. F3 asks whether a limit scoped to one category
+      should apply to everyone (it should not, but expressing that needs conditional rules the
+      DSL does not have). The Severity 3 cases ask what to do when one bullet states several
+      criteria and only some are modellable — today the remainder leaves no trace at all.
 - [ ] Re-run `pnpm db:renormalize` after any normaliser change, then re-audit with the same seed
       and diff the output.
 - [ ] Audit a second sample with a different seed before the pilot; one sample of fifteen is

@@ -79,6 +79,32 @@ const SLASH_ALTERNATION = /(?<=\w)\s*\/\s*(?=\w)/;
 const stripLinks = (text: string): string =>
   text.replace(/\[([^\]]*)\]\([^)]*\)/g, '$1').replace(/https?:\/\/\S+/g, '');
 
+/**
+ * A range spelt out as two bounds rather than as "between X and Y".
+ *
+ * Shared by the pattern that reads it and the check that rejects it when the
+ * bounds are the wrong way round.
+ */
+const AGE_RANGE_AS_BOUNDS =
+  /not\s+(?:be\s+)?less\s+than\s+(\d+)\s*(?:years|yrs)[^.]*?(?:or|and)\s+(?:not\s+)?more\s+than\s+(\d+)\s*(?:years|yrs)/i;
+
+/**
+ * True when a sentence states a range nobody could satisfy.
+ *
+ * "not less than 50 years or more than 18 years" is a data error, not a
+ * criterion. Left alone, the lower bound would match on its own and assert
+ * `age >= 50` — half of a contradictory sentence, picked arbitrarily, and
+ * capable of excluding someone who qualifies. The whole bullet is UNKNOWN.
+ */
+const statesImpossibleAgeRange = (text: string): boolean => {
+  const match = AGE_RANGE_AS_BOUNDS.exec(text);
+  if (!match) return false;
+
+  const min = num(match[1]);
+  const max = num(match[2]);
+  return min !== null && max !== null && min > max;
+};
+
 const AGE_CONTEXT = /\b(?:age|aged|years?|yrs?)\b/i;
 const INCOME_CONTEXT = /\bincome\b/i;
 
@@ -131,6 +157,27 @@ const PATTERNS: Pattern[] = [
     build: (m) => {
       const min = num(m[1]);
       const max = num(m[2]);
+      return min !== null && max !== null && min <= max
+        ? { field: 'age', op: 'between', min, max }
+        : null;
+    },
+  },
+  {
+    context: AGE_CONTEXT,
+    // A range spelt out as two bounds rather than as "between X and Y":
+    //   "not less than 18 years old or more than 50 years of age"
+    //   "not less than 18 years and not more than 45 years"
+    //
+    // Must precede the lone "not less than" pattern below, which would
+    // otherwise match first, claim the age field, and leave the upper bound
+    // unread — which is exactly what it did (audit finding F4).
+    pattern:
+      AGE_RANGE_AS_BOUNDS,
+    build: (m) => {
+      const min = num(m[1]);
+      const max = num(m[2]);
+      // An inverted range matches nobody, so it would fail everyone. Declining
+      // leaves the bullet to the wildcard path and an honest UNKNOWN.
       return min !== null && max !== null && min <= max
         ? { field: 'age', op: 'between', min, max }
         : null;
@@ -299,7 +346,11 @@ export function synthesizeClauses(prose: string): RuleNode[] {
 
   // Qualified, conditional, or partially-waived prose is not safely reducible
   // to clauses, however parseable its parts look.
-  if (AMBIGUITY_MARKERS.test(text) || EXCEPTION_MARKERS.test(text)) {
+  if (
+    AMBIGUITY_MARKERS.test(text) ||
+    EXCEPTION_MARKERS.test(text) ||
+    statesImpossibleAgeRange(text)
+  ) {
     return [wildcard(text, 'ambiguous')];
   }
 

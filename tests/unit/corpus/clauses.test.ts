@@ -127,6 +127,51 @@ describe('income stated per month', () => {
  * link targets, and URLs full of them. Treating those as alternatives would
  * discard good clauses, including the income bound fixed in F1.
  */
+/**
+ * A RANGE SPELT OUT AS TWO BOUNDS (audit finding F4, docs/AUDIT.md).
+ *
+ * "not less than 18 years old or more than 50 years of age" states a range.
+ * The lower bound matched first and claimed the age field, so the upper bound
+ * was never tried and half the constraint vanished — a 60-year-old was told
+ * they might qualify for a scheme that stops at 50.
+ *
+ * Less harmful than a false negative: it shows someone a scheme they will be
+ * turned away from rather than hiding one they are entitled to. Still wrong.
+ */
+describe('a range written as two bounds', () => {
+  it.each([
+    [
+      'The applicant age should not be less than 18 years old or more than 50 years of age.',
+      { field: 'age', op: 'between', min: 18, max: 50 },
+    ],
+    [
+      'The age should not be less than 18 years and not more than 45 years at the time of marriage.',
+      { field: 'age', op: 'between', min: 18, max: 45 },
+    ],
+  ])('%s', (prose, expected) => {
+    expect(synthesizeClause(prose)).toEqual(expected);
+  });
+
+  it('still reads a lone lower bound as a lower bound', () => {
+    // The paired pattern must not swallow the single-bound case.
+    expect(synthesizeClause('The applicant should not be less than 18 years.')).toEqual({
+      field: 'age',
+      op: 'gte',
+      value: 18,
+    });
+  });
+
+  it('refuses a range whose bounds are inverted', () => {
+    // "not less than 50 ... or more than 18" is not a range anyone meant.
+    // Emitting between(50, 18) would match nobody and fail everyone.
+    const clauses = synthesizeClauses(
+      'The age should not be less than 50 years or more than 18 years.',
+    );
+
+    expect(clauses.every((c) => 'op' in c && c.op === 'WILDCARD')).toBe(true);
+  });
+});
+
 describe('alternatives separated by a slash', () => {
   it('declines to assert a gender taken from one branch', () => {
     const clauses = synthesizeClauses(

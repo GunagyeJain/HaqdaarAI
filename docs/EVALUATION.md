@@ -9,7 +9,7 @@ Proposal §6 defines success as five measurable metrics. This document converts 
 
 | # | Metric | Target | Measured (2026-09-08) | Gate |
 |---|---|---|---|---|
-| 1 | Response latency | median ≤ 2s | local **338ms** typed · **1210ms** voice · **production 2686ms = FAIL** | `pnpm test:e2e` |
+| 1 | Response latency | median ≤ 2s | local **338ms** · voice **1210ms** · **production 512ms** | `pnpm test:e2e` |
 | 2 | Extraction accuracy | **0%** hallucinated | **0** adversarial · **0** live over 40 transcripts (2026-09-08) | `pnpm test:eval` |
 | 3 | Matching speed | < 100ms | **52.9ms** server over 483 schemes | `pnpm test` |
 | 4 | Corpus coverage | ≥ 150 schemes | **483**, 98% with a modelled clause | `pnpm test` |
@@ -58,40 +58,58 @@ bottleneck, so optimising it would buy nothing. 7 of 8 runs were measured — on
 a 502 from the extraction stage, and a throttled or degraded call is recorded as unmeasured
 rather than folded into the distribution as though the system were merely slow.
 
-### Production, measured 2026-09-08 — the target is NOT met
+### Production, measured 2026-09-08
 
-Against `https://haqdaar-ai.vercel.app`, Vercel Hobby + Neon:
+Against `https://haqdaar-ai.vercel.app` (Vercel Hobby + Neon, full 483-scheme corpus):
 
-| Path | Median | p95 | Target |
+| Run | Median | p95 | Verdict |
 |---|---|---|---|
-| Typed, local dev machine | 338ms | 758ms | pass |
-| Typed, **production** | **2686ms** | **2873ms** | **FAIL** |
+| Local dev machine | 338ms | 758ms | pass |
+| Production, functions in `iad1` | 2686ms | 2873ms | **FAIL** |
+| Production, functions in `sin1` | **512ms** | **1111ms** | **pass** |
 
-The local figure is kept rather than replaced, because the gap is the finding. Production is
-**8x slower** than the developer machine and misses the §6.1 budget outright.
+All three are kept. The middle row is the finding, and deleting it would delete the reason
+the third row exists.
 
-**Attributed, not guessed at.** Three measurements separate network from database:
+**What went wrong.** The first deployment missed the §6.1 budget by 34%. Three endpoints
+separated network from database:
 
-| Segment | Time | What it is |
+| Request | iad1 | What it includes |
 |---|---|---|
-| `GET /api/voice` | ~0.50s | client to the function and back; touches no database |
+| `GET /api/voice` | ~0.50s | client to function and back, **no database** |
 | `GET /api/health` | ~0.68s | the same path plus **one** trivial query |
 | `POST /api/match` | ~2.5s | the same path plus the full matcher |
 
-So a single database round trip costs **~180ms**, and the matcher spends **~2.0s** talking to
-the database. Locally that same query is 52.9ms server-side. The matcher did not get slower — every round trip it makes now crosses an ocean.
+One database round trip cost **~180ms**, and the matcher spent **~2.0s** on database round
+trips — a query that takes 52.9ms server-side locally. The matcher had not become slower.
+Every round trip it made was crossing an ocean.
 
-`X-Vercel-Id: bom1::iad1` names the cause exactly: the request enters at **Mumbai** but the
-function executes in **iad1, Virginia**, while the database sits far from Virginia. A 180ms
-trivial query is not a slow query; it is a transcontinental one.
+`X-Vercel-Id: bom1::iad1` named it: requests entered at Mumbai, functions executed in
+Virginia, and the database was in Singapore. A 180ms trivial query is not a slow query; it
+is a transcontinental one.
 
-**Fix applied:** `vercel.json` pins functions to `sin1` (Singapore). Hobby permits exactly one
-region, and Singapore is right on both counts — it is beside the database and it is far
-closer to the citizens this is built for than Virginia is. Awaiting redeploy, after which
-these numbers are re-measured rather than assumed to have improved.
+**The fix was one line.** `vercel.json` pins functions to `sin1`. Hobby permits exactly one
+region, and Singapore is correct on both counts: beside the database, and far closer to the
+citizens this is built for than Virginia. Latency fell **5.2x**, from 2686ms to 512ms.
 
-**This is the value of re-measuring in production.** Every local number was honest and none
-of them predicted this. A dev-machine measurement is not the result.
+**Two harness defects surfaced on the way, both of which hid the number.**
+
+The latency spec died on Playwright’s 30s default doing 12 runs of ~2.5s and reported "Test
+timeout exceeded" — a stopwatch where a measurement belonged. Its budget now scales with
+the run count, so a slow deployment fails *with its median attached*.
+
+And the suite ran parallel workers against one deployment, so it measured its own
+contention: two accessibility scans timed out at 30s, then passed in 10s and 8.6s when run
+alone. Nothing was wrong with the page. A run against `E2E_BASE_URL` now uses a single
+worker — slower in wall-clock, honest in result, and it matters most for the one spec
+whose entire job is to report a number a citizen would actually experience.
+
+**Full production suite: 31 passed, 6 skipped, 0 failed.** The skips are honest: five
+degradation tests, because production has real AI keys and that suite needs their absence,
+and the voice-latency measurement, because the Groq daily quota was spent.
+
+**This is what re-measuring in production is for.** Every local number was correct and none
+of them predicted a 2.7-second production median. A dev-machine measurement is not the result.
 
 
 ---

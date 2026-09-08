@@ -11,7 +11,7 @@ AI coding agent, so continuity lives here rather than in anyone's memory.
 
 *Last updated 2026-09-08 (session 2: voice latency, provider budget, honest-inconclusive).*
 
-**Phases 0–5 complete. Phase 6 is complete except the deploy itself**, which
+needs the developer’s Vercel and Neon accounts.
 needs the developer's Vercel and Neon accounts.
 
 The application works end to end. A citizen completes a profile — by typing, or
@@ -22,7 +22,7 @@ real 483-scheme corpus scraped from myscheme.gov.in.
 
 | Metric (proposal §6) | Target | Measured |
 |---|---|---|
-| Response latency | median ≤2s | **338ms** typed (p95 758ms) · **1210ms** voice (p95 1395ms) |
+| Response latency | median ≤2s | local **338ms** · voice **1210ms** · **production 512ms** (p95 1111ms) |
 | Extraction accuracy | 0% hallucinated | **0** adversarial (37) · **0** live (40), recall not recaptured |
 | Matching speed | <100ms | **52.9ms** server-side, 483 schemes |
 | Corpus coverage | ≥150 schemes | **483**, 98% with a modelled clause |
@@ -210,9 +210,10 @@ rather than approximated from a synthetic-audio run that would flatter it.
 - [x] [DEPLOYMENT.md](DEPLOYMENT.md) — hosting, environment, post-deploy checks
 - [x] **Deploy to Vercel + Neon** — live at https://haqdaar-ai.vercel.app, full 483-scheme corpus
 - [ ] **Verify the scheduled scrape fires once** — deployment blocker
-- [x] Re-run all metrics against production — **latency FAILS there**: 2686ms median
-      vs 338ms local. Cause found and fix applied (`vercel.json` pins `sin1`);
-      **re-measure after redeploy**
+- [x] Re-run all metrics against production — **512ms median, p95 1111ms**, inside
+      the 2s budget. Got there via a real failure: the first deployment ran
+      functions in `iad1` with the database in Singapore and measured 2686ms
+      ([EVALUATION.md](EVALUATION.md) keeps all three numbers)
 
 **Exit:** live, and all metrics re-verified on real infrastructure.
 
@@ -248,6 +249,8 @@ surprises, and things worth remembering go here:
 | 2026-09-08 | **Production latency fails the §6.1 target: 2686ms median, 8x the local 338ms.** `X-Vercel-Id: bom1::iad1` shows the function running in Virginia while the database is far from it; one trivial query costs ~180ms and the matcher spends ~2.0s on database round trips. Not a slow query — a transcontinental one. `vercel.json` now pins `sin1`. |
 | 2026-09-08 | **CI had never run before today** — the repo was local-only, so "CI runs every gate on each push" described the file, not reality. Four e2e gates needing a corpus had never protected anything; `tests/fixtures/corpus.sql` (25 real schemes) now gives CI one. |
 | 2026-09-08 | The latency spec died on Playwright’s 30s default against a slow deployment, reporting a stopwatch instead of a measurement. Timeout now scales with the run count so a failing deployment fails *with its number*. |
+| 2026-09-08 | **`vercel.json` pinning `sin1` cut production latency 5.2x**, 2686ms to 512ms. One line, one region. |
+| 2026-09-08 | The e2e suite ran parallel workers against a single deployment and measured its own contention — two accessibility scans timed out at 30s, then passed in 10s and 8.6s alone. A run against `E2E_BASE_URL` now uses one worker. |
 
 ---
 

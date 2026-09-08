@@ -65,6 +65,24 @@ jobs:
       - name: Extraction hallucination gate
         run: pnpm test:eval
 
+      # MUST run after the integration suite, not before it.
+      #
+      # match-performance seeds its 300 synthetic rows only on an empty database
+      # and corpus-coverage skips on one, so loading the fixture earlier would
+      # quietly change what both of those measure. The e2e suite is the only
+      # consumer that needs real rows.
+      #
+      # Without this, four e2e tests cannot pass in CI at all: verdict cards,
+      # source prose, the expanded ineligible list and the next-question prompt
+      # all need schemes to exist. They failed on this repository’s first push.
+      - name: Load the CI corpus fixture
+        run: |
+          if ! command -v psql >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq postgresql-client
+          fi
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f tests/fixtures/corpus.sql
+
       - name: Install Playwright browsers
         run: pnpm exec playwright install --with-deps chromium
 
@@ -84,7 +102,12 @@ jobs:
   #   hallucination (§6.2)  `pnpm test:eval`   — every push, above
   #   matching speed (§6.2)  integration suite — seeds a synthetic corpus on an
   #                                              empty CI database
-  #   latency (§6.1)         e2e suite         — typed path over real HTTP
+  #   latency (§6.1)         e2e suite         — typed path over real HTTP, but
+  #                                              against the 25-scheme fixture, so
+  #                                              the CI number is a smoke check and
+  #                                              NOT the reported figure. The real
+  #                                              one is measured over the full
+  #                                              corpus and re-measured in prod.
   #   corpus coverage (§6.2) integration suite — skipped without a scraped
   #                                              corpus; enforced by the scrape
   #                                              workflow, which has one

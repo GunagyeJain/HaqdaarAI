@@ -43,5 +43,8 @@ pnpm-debug.log*
 
 # Corpus dumps used to seed a remote database. Regenerate with pg_dump;
 # never commit one - it is a 1MB snapshot that goes stale immediately.
-corpus.sql
+#
+# Root-anchored deliberately: tests/fixtures/corpus.sql is a committed 25-scheme
+# CI fixture and must NOT be caught by this rule.
+/corpus.sql
 *.dump

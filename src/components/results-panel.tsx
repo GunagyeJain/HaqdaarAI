@@ -1,172 +1,144 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
+import { partition } from '@/domain/matching/shortlist';
+import type { MatchResultItem } from '@/domain/matching/types';
 import { useProfile } from '@/lib/profile-state';
+import { Narrowing } from './narrowing';
 import { SchemeCard } from './scheme-card';
 
 /**
- * The result list.
+ * The result list, in the order a citizen can act on.
  *
- * PASS and UNKNOWN are shown together and by default; FAIL is collapsed. That
- * ordering follows from invariant 6: "you may qualify, and here is what we
- * still cannot tell" is the actionable answer, and for most schemes it is the
- * honest one, because most carry at least one criterion we deliberately refuse
- * to model rather than guess at.
+ * It used to lead with "N you qualify for", and that number is almost always
+ * zero: around 60% of corpus clauses are WILDCARD, a wildcard is UNKNOWN
+ * forever, and so most schemes structurally cannot reach PASS however much
+ * anyone answers. Opening on a zero is accurate and useless, and reads as a
+ * rejection of the person rather than a limit of the tool.
+ *
+ * So it leads with the shortlist -- everything we could check has passed, only
+ * human verification left -- and the long tail is collapsed behind counts that
+ * are still stated in full. Nothing is hidden; the order just stops burying the
+ * part worth reading.
  */
+
 /**
  * How many ineligible schemes to render at once.
  *
- * Rendering all of them was measurably slow even on a desktop; on the mid-range
- * Android this is built for it would be far worse, and the FAIL list is the
- * least actionable content on the page. The count is always stated in full —
+ * Rendering all of them was measurably slow even on a desktop; on the
+ * mid-range Android this is built for it would be far worse, and this is the
+ * least actionable content on the page. The count is always stated in full --
  * the cap is a rendering limit, not a hidden result.
  */
 const MAX_FAILED_RENDERED = 25;
 
 export function ResultsPanel() {
   const t = useTranslations('results');
-  const { result, nextQuestion, setHighlightedField } = useProfile();
-  const [showFailed, setShowFailed] = useState(false);
-  const headingRef = useRef<HTMLHeadingElement>(null);
+  const { result } = useProfile();
 
-  /**
-   * On a phone the results sit below sixteen form fields, so submitting
-   * appeared to do nothing at all: the button is at the bottom of the
-   * viewport, the answer is a screen and a half further down, and the only
-   * visible change is a progress count ticking up. People conclude it is
-   * broken, because from where they are sitting it is.
-   *
-   * Desktop shows both columns at once and needs none of this, which is
-   * exactly why it went unnoticed on a laptop.
-   *
-   * Honours prefers-reduced-motion, and only moves focus-free scroll — the
-   * live region already announces the result to a screen reader, so
-   * stealing focus here would interrupt rather than help.
-   */
-  useEffect(() => {
-    if (!result || !headingRef.current) return;
-    if (!window.matchMedia('(max-width: 1023px)').matches) return;
+  const [narrowing, setNarrowing] = useState(true);
+  const [showNeedsAnswers, setShowNeedsAnswers] = useState(false);
+  const [showIneligible, setShowIneligible] = useState(false);
 
-    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    headingRef.current.scrollIntoView({
-      behavior: reduced ? 'auto' : 'smooth',
-      block: 'start',
-    });
-  }, [result]);
+  if (!result) return null;
 
-  if (!result) {
-    return (
-      <div className="hidden rounded-2xl border border-dashed border-[var(--color-border-strong)] bg-[var(--color-surface-raised)]/50 p-8 text-center text-sm leading-relaxed text-[var(--color-ink-muted)] lg:block">
-        {t('empty')}
-      </div>
-    );
-  }
+  // The list stays hidden while the narrowing is on screen: showing one that is
+  // about to change would be showing an answer we are mid-way through
+  // correcting.
+  if (narrowing) return <Narrowing onDone={() => setNarrowing(false)} />;
 
-  const { pass, unknown, fail, counts } = result;
+  const { shortlist, needsAnswers, ineligible } = partition(result);
+  const { counts } = result;
 
   return (
-    <section aria-live="polite" className="flex flex-col gap-4">
-      <div className="scroll-mt-4">
-        <h2 ref={headingRef} className="scroll-mt-4 text-xl font-bold tracking-tight">
-          {t('heading')}
-        </h2>
+    <section aria-live="polite" className="flex flex-col gap-6">
+      <div>
+        <h2 className="text-2xl font-bold tracking-tight">{t('heading')}</h2>
         <p className="mt-1.5 text-sm leading-relaxed text-[var(--color-ink-muted)]">
           {t('summary', { pass: counts.pass, unknown: counts.unknown, total: counts.total })}
         </p>
       </div>
 
-      {nextQuestion && <NextQuestionCard onAnswer={setHighlightedField} />}
-
-      {pass.length > 0 && (
+      {shortlist.length > 0 ? (
         <div className="flex flex-col gap-3">
-          <p className="text-sm text-[var(--color-ink-muted)]">{t('passHint')}</p>
-          {pass.map((item) => (
+          <h3 className="text-lg font-bold tracking-tight">
+            {t('shortlistHeading', { count: shortlist.length })}
+          </h3>
+          <p className="text-sm leading-relaxed text-[var(--color-ink-muted)]">
+            {t('shortlistIntro')}
+          </p>
+          {shortlist.map((item) => (
             <SchemeCard key={item.schemeId} item={item} />
           ))}
         </div>
+      ) : (
+        <p className="rounded-2xl border border-dashed border-[var(--color-border-strong)] p-5 text-sm leading-relaxed text-[var(--color-ink-muted)]">
+          {t('shortlistEmpty')}
+        </p>
       )}
 
-      {unknown.length > 0 && (
-        <div className="flex flex-col gap-3">
-          <p className="text-sm text-[var(--color-ink-muted)]">{t('unknownHint')}</p>
-          {unknown.map((item) => (
-            <SchemeCard key={item.schemeId} item={item} />
-          ))}
-        </div>
-      )}
+      <Disclosure
+        label={t('needsAnswers', { count: needsAnswers.length })}
+        open={showNeedsAnswers}
+        onToggle={() => setShowNeedsAnswers((shown) => !shown)}
+        items={needsAnswers}
+      />
 
-      {fail.length > 0 && (
-        <div className="flex flex-col gap-3">
-          <button
-            type="button"
-            onClick={() => setShowFailed((shown) => !shown)}
-            aria-expanded={showFailed}
-            className="min-h-11 self-start text-sm text-[var(--color-brand-text)] underline underline-offset-2"
-          >
-            {showFailed ? t('hideFailed') : t('showFailed', { count: counts.fail })}
-          </button>
-          {showFailed && (
-            <>
-              {fail.length > MAX_FAILED_RENDERED && (
-                <p className="text-sm text-[var(--color-ink-muted)]">
-                  {t('showingSome', { shown: MAX_FAILED_RENDERED, total: fail.length })}
-                </p>
-              )}
-              {fail.slice(0, MAX_FAILED_RENDERED).map((item) => (
-                <SchemeCard key={item.schemeId} item={item} />
-              ))}
-            </>
-          )}
-        </div>
-      )}
+      <Disclosure
+        label={t('ruledOut', { count: ineligible.length })}
+        open={showIneligible}
+        onToggle={() => setShowIneligible((shown) => !shown)}
+        items={ineligible}
+        cap={MAX_FAILED_RENDERED}
+        capNote={(shown, total) => t('showingSome', { shown, total })}
+      />
     </section>
   );
 }
 
-/**
- * The information-gain prompt: the single unanswered field that would decide
- * the most currently-undecided schemes (docs/DATA-MODEL.md §5).
- */
-function NextQuestionCard({ onAnswer }: { onAnswer: (field: null) => void }) {
-  const t = useTranslations('question');
-  const tResults = useTranslations('results');
-  const { nextQuestion, setHighlightedField } = useProfile();
+function Disclosure({
+  label,
+  open,
+  onToggle,
+  items,
+  cap,
+  capNote,
+}: {
+  label: string;
+  open: boolean;
+  onToggle: () => void;
+  items: MatchResultItem[];
+  cap?: number;
+  capNote?: (shown: number, total: number) => string;
+}) {
+  if (items.length === 0) return null;
 
-  if (!nextQuestion) return null;
+  const rendered = cap ? items.slice(0, cap) : items;
 
   return (
-    <aside className="rounded-xl border border-[var(--color-brand)]/30 bg-[color-mix(in_oklch,var(--color-brand)_7%,transparent)] p-4">
-      <h3 className="text-sm font-semibold">{t('heading')}</h3>
-      <p className="mt-1 text-base font-medium">
-        {tResults(`clause.${nextQuestion.field}`)}
-      </p>
-      <p className="mt-1 text-sm text-[var(--color-ink-muted)]">
-        {t('unblocks', { count: nextQuestion.schemesUnblocked })}
-      </p>
+    <div className="flex flex-col gap-3">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        className="min-h-12 self-start text-left text-base font-medium text-[var(--color-brand-text)] underline underline-offset-2"
+      >
+        {label}
+      </button>
 
-      <div className="mt-3 flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={() => {
-            setHighlightedField(nextQuestion.field);
-            document
-              .getElementById(`field-${nextQuestion.field}`)
-              ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            document.getElementById(`input-${nextQuestion.field}`)?.focus();
-          }}
-          className="min-h-11 rounded-lg bg-[var(--color-brand)] px-4 text-sm font-semibold text-[var(--color-brand-on)]"
-        >
-          {tResults(`clause.${nextQuestion.field}`)}
-        </button>
-        <button
-          type="button"
-          onClick={() => onAnswer(null)}
-          className="min-h-11 rounded-lg border border-[var(--color-border)] px-4 text-sm"
-        >
-          {t('skip')}
-        </button>
-      </div>
-    </aside>
+      {open && (
+        <>
+          {cap && capNote && items.length > cap && (
+            <p className="text-sm text-[var(--color-ink-muted)]">
+              {capNote(cap, items.length)}
+            </p>
+          )}
+          {rendered.map((item) => (
+            <SchemeCard key={item.schemeId} item={item} />
+          ))}
+        </>
+      )}
+    </div>
   );
 }

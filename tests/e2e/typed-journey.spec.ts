@@ -93,14 +93,21 @@ test.describe('typed-only journey', () => {
     );
   });
 
-  test('asks the next best question', async ({ page }) => {
-    await completeForm(page, { age: '30' });
+  test('asks a few narrowing questions before showing the list', async ({ page }) => {
+    // Two or three well-chosen questions cut the list down far more than any
+    // amount of sorting, because the engine picks the field blocking the most
+    // currently-undecided schemes.
+    await completeForm(page, { age: '30' }, 'en', { stopAtNarrowing: true });
 
-    const prompt = page.getByText('One more question would help');
-    await expect(prompt).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText('Before we show your results')).toBeVisible({
+      timeout: 20_000,
+    });
+    await expect(page.getByText(/decides \d+ schemes/)).toBeVisible();
+    await expect(page.getByText('Question 1 of 3')).toBeVisible();
 
-    // The prompt names how many schemes answering would decide.
-    await expect(page.getByText(/could decide \d+ more schemes/)).toBeVisible();
+    // And it is always skippable, in one tap.
+    await page.getByRole('button', { name: 'Show me anyway' }).click();
+    await expect(page.getByRole('heading', { name: 'What we found' })).toBeVisible();
   });
 
   test('never coerces an unanswered field into a No', async ({ page }) => {

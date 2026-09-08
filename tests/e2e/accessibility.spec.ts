@@ -50,7 +50,7 @@ test.describe('WCAG 2.1 AA', () => {
       timeout: 20_000,
     });
 
-    await page.getByRole('button', { name: /Show \d+ schemes/ }).click();
+    await page.getByRole('button', { name: /You do not qualify for these/ }).click();
     const { violations } = await scan(page).analyze();
     expect(violations.length, `\n  ${describeViolations(violations)}\n`).toBe(0);
   });
@@ -88,7 +88,9 @@ test.describe('usable without a mouse', () => {
     await page.getByRole('button', { name: 'Find my schemes' }).focus();
     await page.keyboard.press('Enter');
 
-    await expect(page.getByRole('heading', { name: 'What we found' })).toBeVisible({
+    // Submitting lands on the narrowing stage, which is proof enough that the
+    // keyboard operated the button.
+    await expect(page.getByRole('heading', { name: 'Before we show your results' })).toBeVisible({
       timeout: 20_000,
     });
   });
@@ -134,5 +136,53 @@ test.describe('verdict colour is never the only signal', () => {
 
     const card = page.locator('article').first();
     await expect(card).toContainText(/You qualify|You may qualify|Not eligible/);
+  });
+});
+
+test.describe('never scrolls sideways', () => {
+  /**
+   * A phone that scrolls horizontally is a phone that has zoomed out, and every
+   * line of text on it just got smaller for a reader who may already have low
+   * vision.
+   *
+   * This was real and nothing caught it. Result cards put their reasons in a
+   * grid, a grid item's automatic minimum is its min-content width, and the
+   * government prose we quote contains raw URLs -- one unbreakable token
+   * widened the card to 600px inside a 412px phone. Chromium then scaled the
+   * page to fit, which is why the page reported a 641px viewport it did not
+   * have.
+   *
+   * `overflow-wrap: break-word` does NOT fix this: it wraps visually without
+   * reducing min-content. The grid items need min-w-0.
+   */
+  const measure = (page: Page) =>
+    page.evaluate(() => ({
+      scrollWidth: document.documentElement.scrollWidth,
+      clientWidth: document.documentElement.clientWidth,
+    }));
+
+  test('the form fits its viewport', async ({ page }) => {
+    await page.goto('/en');
+    const { scrollWidth, clientWidth } = await measure(page);
+
+    expect(scrollWidth).toBeLessThanOrEqual(clientWidth);
+  });
+
+  test('the results fit their viewport, cards expanded', async ({ page }) => {
+    await completeForm(page, { age: '42', state: 'PB' });
+    await expect(page.getByRole('heading', { name: 'What we found' })).toBeVisible({
+      timeout: 20_000,
+    });
+
+    // The source prose is the longest text on the page and the likeliest to
+    // carry an unbreakable token, so it is measured open rather than collapsed.
+    await page
+      .locator('article')
+      .first()
+      .getByRole('button', { name: "The government's own wording" })
+      .click();
+
+    const { scrollWidth, clientWidth } = await measure(page);
+    expect(scrollWidth).toBeLessThanOrEqual(clientWidth);
   });
 });

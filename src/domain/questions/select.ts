@@ -56,9 +56,15 @@ function isMoot(field: ProfileField, profile: Profile): boolean {
   return field === 'disabilityPercentage' && profile.isDisabled === false;
 }
 
+/**
+ * @param exclude Fields the citizen has already declined to answer. Skipping
+ * has to yield the NEXT most useful question rather than the same one again,
+ * or the only way past an unwelcome question is to abandon the narrowing.
+ */
 export function selectNextQuestion(
   results: readonly MatchedScheme[],
   profile: Profile,
+  exclude: ReadonlySet<ProfileField> = new Set(),
 ): NextQuestion | null {
   const blocking = new Map<ProfileField, number>();
 
@@ -70,6 +76,7 @@ export function selectNextQuestion(
     for (const field of new Set(result.unknownFields)) {
       if (profile[field] !== undefined) continue;
       if (isMoot(field, profile)) continue;
+      if (exclude.has(field)) continue;
 
       blocking.set(field, (blocking.get(field) ?? 0) + 1);
     }

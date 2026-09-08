@@ -49,7 +49,7 @@ export function SchemeCard({ item }: { item: MatchResultItem }) {
       className={`rounded-2xl border border-l-[5px] border-[var(--color-border)] bg-[var(--color-surface-raised)] p-4 sm:p-5 ${style.border}`}
     >
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h3 className="text-[1.05rem] leading-snug font-bold">{item.scheme.name}</h3>
+        <h3 className="text-[1.05rem] leading-snug font-bold break-words">{item.scheme.name}</h3>
         {/* Colour is never the only signal — the verdict is always spelled out. */}
         <span className={`flex items-center gap-1.5 text-sm font-medium ${style.text}`}>
           <span className={`inline-block h-2 w-2 rounded-full ${style.dot}`} aria-hidden />
@@ -66,12 +66,12 @@ export function SchemeCard({ item }: { item: MatchResultItem }) {
         <p className="mt-2.5 text-sm leading-relaxed text-[var(--color-ink-muted)]">{item.scheme.summary}</p>
       )}
 
-      <dl className="mt-3 grid gap-2 text-sm">
+      <dl className="mt-3 grid min-w-0 gap-2 text-sm">
         {item.matchedClauses.length > 0 && (
-          <div>
+          <div className="min-w-0">
             <dt className="font-medium">{t('whyMatched')}</dt>
             <dd>
-              <ul className="mt-1 list-inside list-disc text-[var(--color-ink-muted)]">
+              <ul className="mt-1 list-inside list-disc break-words text-[var(--color-ink-muted)]">
                 {item.matchedClauses.map((clause, index) => (
                   <li key={`m${index}`}>{clauseText(clause)}</li>
                 ))}
@@ -81,10 +81,10 @@ export function SchemeCard({ item }: { item: MatchResultItem }) {
         )}
 
         {item.failedClauses.length > 0 && (
-          <div>
+          <div className="min-w-0">
             <dt className="font-medium">{t('whyFailed')}</dt>
             <dd>
-              <ul className="mt-1 list-inside list-disc text-[var(--color-ink-muted)]">
+              <ul className="mt-1 list-inside list-disc break-words text-[var(--color-ink-muted)]">
                 {item.failedClauses.map((clause, index) => (
                   <li key={`f${index}`}>{clauseText(clause)}</li>
                 ))}
@@ -93,8 +93,24 @@ export function SchemeCard({ item }: { item: MatchResultItem }) {
           </div>
         )}
 
+        {/* The most useful line on the card for an UNKNOWN verdict: not "we
+            cannot tell", but the specific things a human has to go and check.
+            These are the WILDCARD criteria in the government's own words. */}
+        {item.unmodelledCriteria.length > 0 && (
+          <div className="min-w-0">
+            <dt className="font-medium">{t('goCheck')}</dt>
+            <dd>
+              <ul className="mt-1 list-inside list-disc break-words text-[var(--color-ink-muted)]">
+                {item.unmodelledCriteria.map((criterion, index) => (
+                  <li key={`u${index}`}>{criterion}</li>
+                ))}
+              </ul>
+            </dd>
+          </div>
+        )}
+
         {item.verdict === 'UNKNOWN' && item.unknownFields.length > 0 && (
-          <div>
+          <div className="min-w-0">
             <dt className="font-medium">{t('stillNeeded')}</dt>
             <dd className="mt-1 flex flex-wrap gap-1.5">
               {item.unknownFields.map((field) => (
@@ -130,7 +146,7 @@ export function SchemeCard({ item }: { item: MatchResultItem }) {
       </div>
 
       {showProse && (
-        <blockquote className="mt-2 whitespace-pre-line rounded-xl border-l-2 border-[var(--color-border-strong)] bg-[var(--color-surface-sunken)] p-3.5 text-sm leading-relaxed text-[var(--color-ink-muted)]">
+        <blockquote className="mt-2 break-words whitespace-pre-line rounded-xl border-l-2 border-[var(--color-border-strong)] bg-[var(--color-surface-sunken)] p-3.5 text-sm leading-relaxed text-[var(--color-ink-muted)]">
           {item.scheme.sourceProse}
         </blockquote>
       )}

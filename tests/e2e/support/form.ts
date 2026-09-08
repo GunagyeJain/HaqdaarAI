@@ -45,6 +45,22 @@ export const SUBMIT = {
   pa: 'ਮੇਰੀਆਂ ਯੋਜਨਾਵਾਂ ਲੱਭੋ',
 } as const;
 
+/** The control that ends the narrowing stage and reveals the list. */
+export const SHOW_RESULTS = {
+  en: 'Show me anyway',
+  pa: 'ਫਿਰ ਵੀ ਨਤੀਜੇ ਦਿਖਾਓ',
+} as const;
+
+/**
+ * Walks past the narrowing questions to the list.
+ *
+ * Submitting lands on the narrowing stage, not on the results, so any test
+ * about the list itself has to get through it first.
+ */
+export async function showResults(page: Page, locale: 'en' | 'pa' = 'en'): Promise<void> {
+  await page.getByRole('button', { name: SHOW_RESULTS[locale] }).click();
+}
+
 export type SupportedLocale = keyof typeof NEXT;
 
 /**
@@ -56,6 +72,7 @@ export async function completeForm(
   page: Page,
   answers: Partial<Record<FormField, string>>,
   locale: SupportedLocale = 'en',
+  options: { stopAtNarrowing?: boolean } = {},
 ): Promise<void> {
   await page.goto(`/${locale}`);
 
@@ -75,4 +92,8 @@ export async function completeForm(
   }
 
   await page.getByRole('button', { name: SUBMIT[locale as 'en' | 'pa'] }).click();
+
+  // Submitting lands on the narrowing stage. Most tests want the list behind
+  // it, so walk past unless the test is about the narrowing itself.
+  if (!options.stopAtNarrowing) await showResults(page, locale as 'en' | 'pa');
 }

@@ -136,6 +136,17 @@
     }
   },
   "results": {
+    "narrowHeading": "Before we show your results",
+    "narrowUnblocks": "Answering this decides {count} schemes",
+    "narrowSkip": "Skip this question",
+    "narrowSkipAll": "Show me anyway",
+    "narrowProgress": "Question {asked} of {total}",
+    "shortlistHeading": "{count} schemes worth your time",
+    "shortlistIntro": "Everything we could check has passed. What is left is for you to confirm.",
+    "shortlistEmpty": "Nothing is close enough to show yet. Answering a few more questions will change that.",
+    "goCheck": "Go and check",
+    "needsAnswers": "Needs more answers from you ({count})",
+    "ruledOut": "You do not qualify for these ({count})",
     "expired": "We don't keep your answers, so we can't reopen your results. It only takes a minute to fill in again.",
     "heading": "What we found",
     "summary": "{pass} you qualify for, {unknown} you may qualify for, out of {total} schemes checked.",

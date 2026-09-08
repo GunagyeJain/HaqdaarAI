@@ -140,4 +140,35 @@ describe('questions that would not make sense', () => {
     const profile: Profile = { isDisabled: true };
     expect(selectNextQuestion(results, profile)?.field).toBe('disabilityPercentage');
   });
+  /**
+   * A citizen who does not want to answer something must be able to move past
+   * it and still be offered the next most useful question. Without an
+   * exclusion, skipping would hand back the same question and the only real
+   * option would be to abandon the narrowing entirely.
+   */
+  describe('skipping', () => {
+    it('offers the next best question when one is excluded', () => {
+      const results = [
+        scheme('a', 'UNKNOWN', ['annualIncome']),
+        scheme('b', 'UNKNOWN', ['annualIncome']),
+        scheme('c', 'UNKNOWN', ['age']),
+      ];
+
+      expect(selectNextQuestion(results, {})?.field).toBe('annualIncome');
+      expect(selectNextQuestion(results, {}, new Set(['annualIncome']))?.field).toBe('age');
+    });
+
+    it('returns null once everything on offer has been skipped', () => {
+      const results = [scheme('a', 'UNKNOWN', ['age'])];
+
+      expect(selectNextQuestion(results, {}, new Set(['age']))).toBeNull();
+    });
+
+    it('is unaffected by excluding a field nobody was going to be asked', () => {
+      const results = [scheme('a', 'UNKNOWN', ['age'])];
+
+      expect(selectNextQuestion(results, {}, new Set(['district']))?.field).toBe('age');
+    });
+  });
+
 });

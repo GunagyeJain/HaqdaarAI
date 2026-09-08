@@ -1,5 +1,5 @@
 import type { RuleNode, WildcardClause } from '../rules/types';
-import { extractNumbers } from './numerals';
+import { extractCurrencyAmounts } from './numerals';
 
 /**
  * Turns one bullet of eligibility prose into one rule clause.
@@ -269,7 +269,7 @@ const PATTERNS: Pattern[] = [
     context: INCOME_CONTEXT,
     pattern: /not\s+(?:be\s+)?(?:exceed|more\s+than)|up\s+to|not\s+above|maximum|at\s+most/i,
     build: (_m, prose) => {
-      const [value] = extractNumbers(prose);
+      const [value] = extractCurrencyAmounts(prose);
       if (value === undefined) return null;
       return { field: 'annualIncome', op: 'lte', value: annualise(value, prose) };
     },
@@ -278,7 +278,7 @@ const PATTERNS: Pattern[] = [
     context: INCOME_CONTEXT,
     pattern: /(?:less\s+than|below|under)/i,
     build: (_m, prose) => {
-      const [value] = extractNumbers(prose);
+      const [value] = extractCurrencyAmounts(prose);
       if (value === undefined) return null;
       return { field: 'annualIncome', op: 'lt', value: annualise(value, prose) };
     },

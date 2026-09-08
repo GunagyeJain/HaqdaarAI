@@ -91,16 +91,23 @@ Then **Phase 8 — pilot** ([EVALUATION.md](EVALUATION.md) has the protocol).
 
 ### Owed before the pilot — do not quietly drop these
 
-1. **Manual audit of 15 random schemes** against their `source_prose`. The only
-   check that catches a rule which is well-formed, correctly grounded, and still
-   wrong. This is human review time, not engineering time.
+1. **Human sign-off on the corpus audit** ([AUDIT.md](AUDIT.md)). A first pass
+   is done and found real defects — F1 is fixed, F2 to F7 are recorded and open.
+   What is owed is a person reading the findings, because the pass was made by
+   the same agent that wrote the code it was auditing. Re-run with
+   `pnpm audit:sample 15 1`; a second sample under a different seed is also owed,
+   since fifteen schemes prove defects exist and cannot bound them.
 2. **Verify the scheduled scrape fires once.** The pipeline document treats an
    unverified re-scrape as a deployment blocker, and it is right.
 3. **Recapture recall from a live eval run.** The 2026-09-08 run was
    **conclusive on the gated metric** — all 40 transcripts, **0 invented
    fields** — but its console output was discarded by the reporter, so the
    recall figure was lost. Recall is reported, not gated, so nothing is blocked;
-   one clean pass with `--reporter=verbose` restores the number. Budget a whole
+   one clean pass with `--reporter=verbose` restores the number. **Attempted again
+   on 2026-09-08 and returned INCONCLUSIVE** — 36 of 40 calls rate-limited, only
+   3 transcripts reached the model (recall 6/9 on those, 0 invented). The daily
+   *request* count had reset while the *token* budget had not, which is exactly the
+   trap the inconclusive path exists for. Budget a whole
    day of Groq quota for it.
 4. ~~Cap voice spend before the app is public.~~ **Done 2026-09-08.** A daily
    per-provider cap that stores no identifier of any kind — three integers a
@@ -164,7 +171,11 @@ proven capable of catching a deliberate mutation.
 - [x] Ungrounded bounds → `WILDCARD` + `needs_review`
 - [x] Fail-loudly behaviour + run summary report
 - [x] Keyword passes for a regionally coherent corpus
-- [ ] Manual audit of a 15-scheme random sample — **human review time, still owed**
+- [x] Manual audit of a 15-scheme random sample — first pass done 2026-09-08,
+      [AUDIT.md](AUDIT.md). Found seven defect classes including one systematic
+      false negative. **Human sign-off still owed:** the pass was done by the
+      agent that wrote the normaliser, which is the weakest possible reviewer
+      for it.
 
 **Exit met:** 483 schemes (target 150+), all Zod-valid, zero ungrounded bounds stored.
 
@@ -315,6 +326,8 @@ surprises, and things worth remembering go here:
 | 2026-09-08 | **CI had never run before today** — the repo was local-only, so "CI runs every gate on each push" described the file, not reality. Four e2e gates needing a corpus had never protected anything; `tests/fixtures/corpus.sql` (25 real schemes) now gives CI one. |
 | 2026-09-08 | The latency spec died on Playwright’s 30s default against a slow deployment, reporting a stopwatch instead of a measurement. Timeout now scales with the run count so a failing deployment fails *with its number*. |
 | 2026-09-08 | **`vercel.json` pinning `sin1` cut production latency 5.2x**, 2686ms to 512ms. One line, one region. |
+| 2026-09-08 | **A monthly income limit was stored as an annual one** — "monthly income of ₹15,000 or below" became `annualIncome < 15000`, wrongly excluding everyone earning ₹15,001–₹1,80,000 a year, which is the whole population such schemes are for. 28 schemes affected. Found by reading fifteen schemes beside their prose; no automated gate could have caught it, because the number was right and only its period was wrong. |
+| 2026-09-08 | **`groundRuleTree` never called `isGrounded`** — it carried an inlined copy of the same rule, so the exported function was dead code and strengthening it changed nothing in the pipeline. A safety gate with two implementations, one of which never runs, can be improved in the wrong copy and look improved. Now one definition. |
 | 2026-09-08 | The e2e suite ran parallel workers against a single deployment and measured its own contention — two accessibility scans timed out at 30s, then passed in 10s and 8.6s alone. A run against `E2E_BASE_URL` now uses one worker. |
 
 ---

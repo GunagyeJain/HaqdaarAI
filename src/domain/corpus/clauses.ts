@@ -57,6 +57,27 @@ const DISJUNCTION_MARKERS =
 const AGE_CONTEXT = /\b(?:age|aged|years?|yrs?)\b/i;
 const INCOME_CONTEXT = /\bincome\b/i;
 
+/**
+ * A monthly income limit, which must be annualised because the profile field
+ * is annual (audit finding F1, docs/AUDIT.md).
+ *
+ * Until this existed, "monthly income of ₹15,000 or below" was stored as
+ * `annualIncome < 15000` and rejected everyone earning between ₹15,001 and
+ * ₹1,80,000 a year — which is the entire population such a scheme is for.
+ * The number was extracted correctly and its meaning was not.
+ *
+ * Only an explicit period converts. An unqualified figure is read as written,
+ * because inventing a limit twelve times larger than the government wrote
+ * would be the same defect pointing the other way.
+ */
+const MONTHLY = /\b(?:monthly|per\s+month|a\s+month|p\.?\s?m\.?)(?=\b|$)/i;
+
+const MONTHS_PER_YEAR = 12;
+
+/** Converts a monthly figure to the annual one the profile stores. */
+const annualise = (value: number, prose: string): number =>
+  MONTHLY.test(prose) ? value * MONTHS_PER_YEAR : value;
+
 type Builder = (match: RegExpMatchArray, prose: string) => RuleNode | null;
 
 interface Pattern {
@@ -154,7 +175,8 @@ const PATTERNS: Pattern[] = [
     pattern: /not\s+(?:be\s+)?(?:exceed|more\s+than)|up\s+to|not\s+above|maximum|at\s+most/i,
     build: (_m, prose) => {
       const [value] = extractNumbers(prose);
-      return value === undefined ? null : { field: 'annualIncome', op: 'lte', value };
+      if (value === undefined) return null;
+      return { field: 'annualIncome', op: 'lte', value: annualise(value, prose) };
     },
   },
   {
@@ -162,7 +184,8 @@ const PATTERNS: Pattern[] = [
     pattern: /(?:less\s+than|below|under)/i,
     build: (_m, prose) => {
       const [value] = extractNumbers(prose);
-      return value === undefined ? null : { field: 'annualIncome', op: 'lt', value };
+      if (value === undefined) return null;
+      return { field: 'annualIncome', op: 'lt', value: annualise(value, prose) };
     },
   },
 

@@ -27,7 +27,8 @@
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
     "scrape": "tsx scraper/index.ts",
-    "db:renormalize": "tsx scripts/renormalize.ts"
+    "db:renormalize": "tsx scripts/renormalize.ts",
+    "audit:sample": "tsx scripts/audit-sample.ts"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.2",

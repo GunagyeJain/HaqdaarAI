@@ -25,9 +25,28 @@ export interface GroundingResult {
   needsReview: boolean;
 }
 
+/**
+ * A monthly income limit is annualised on the way in (see clauses.ts), so the
+ * stored bound is deliberately twelve times the figure printed in the prose.
+ *
+ * Without this, the fix for that defect would be undone here: 180000 does not
+ * appear in a sentence that says 15,000, grounding would reject the clause, and
+ * it would fall back to a WILDCARD — safe, but it would silently give up on
+ * deciding income for exactly the low-income schemes that matter most.
+ *
+ * The allowance is kept deliberately narrow: the prose must actually say
+ * monthly, and the stored value must be an exact multiple of twelve of a
+ * number that really appears. It admits no bound that is not derived from the
+ * text.
+ */
+const MONTHLY = /\b(?:monthly|per\s+month|a\s+month|p\.?\s?m\.?)(?=\b|$)/i;
+
 /** True when `value` appears in `prose` in any recognised surface form. */
 export function isGrounded(value: number, prose: string): boolean {
-  return extractNumbers(prose).includes(value);
+  const numbers = extractNumbers(prose);
+  if (numbers.includes(value)) return true;
+
+  return MONTHLY.test(prose) && value % 12 === 0 && numbers.includes(value / 12);
 }
 
 /** The numeric bounds a clause asserts. Non-numeric clauses assert none. */
@@ -61,7 +80,6 @@ function describe(clause: LeafClause): string {
 }
 
 export function groundRuleTree(tree: RuleNode, prose: string): GroundingResult {
-  const available = extractNumbers(prose);
   const ungroundedValues: number[] = [];
   let sawWildcard = false;
 
@@ -78,7 +96,11 @@ export function groundRuleTree(tree: RuleNode, prose: string): GroundingResult {
         return node;
     }
 
-    const missing = boundsOf(node).filter((bound) => !available.includes(bound));
+    // Via isGrounded rather than an inlined includes(). The two had drifted:
+    // this walk carried its own copy of the rule, so isGrounded was dead code
+    // and the monthly-income allowance added to it changed nothing here.
+    // One definition of "grounded", used everywhere.
+    const missing = boundsOf(node).filter((bound) => !isGrounded(bound, prose));
     if (missing.length === 0) return node;
 
     ungroundedValues.push(...missing);

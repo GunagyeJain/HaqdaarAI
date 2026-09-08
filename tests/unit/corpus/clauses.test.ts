@@ -52,6 +52,63 @@ describe('age', () => {
   });
 });
 
+/**
+ * MONTHLY INCOME LIMITS (audit finding F1, docs/AUDIT.md).
+ *
+ * The profile field is annual. A scheme that states a monthly cap therefore
+ * has to be converted, and until this was fixed it was not: "monthly income of
+ * ₹15,000 or below" became `annualIncome < 15000`, which rejects everyone
+ * earning between ₹15,001 and ₹1,80,000 a year — essentially the whole
+ * population the scheme exists for.
+ *
+ * Grounding cannot catch it. "15,000" genuinely appears in the sentence; the
+ * number is right and the period is wrong. Found by reading fifteen schemes
+ * beside their prose, which is the only thing that could have found it.
+ */
+describe('income stated per month', () => {
+  it.each([
+    [
+      'The applicant should have a monthly income of ₹15,000/- or below.',
+      // `lt` rather than `lte` because the normaliser reads "below" as
+      // exclusive. Strictly "₹15,000 or below" includes ₹15,000, so this is a
+      // real if minor imprecision — it affects only someone earning the bound
+      // exactly. Recorded in docs/AUDIT.md rather than changed here, because
+      // the operator question is separate from the annualisation this fixes.
+      { field: 'annualIncome', op: 'lt', value: 180000 },
+    ],
+    [
+      'Family income must be less than ₹10,000 per month.',
+      { field: 'annualIncome', op: 'lt', value: 120000 },
+    ],
+    [
+      'Income should not exceed Rs. 5,000 p.m.',
+      { field: 'annualIncome', op: 'lte', value: 60000 },
+    ],
+    [
+      'Monthly family income up to ₹20,000/-.',
+      { field: 'annualIncome', op: 'lte', value: 240000 },
+    ],
+  ])('%s', (prose, expected) => {
+    expect(synthesizeClause(prose)).toEqual(expected);
+  });
+
+  it('leaves an annual figure alone', () => {
+    // The guard must be the word, not the number. Multiplying an annual
+    // figure by twelve would be the same bug pointing the other way.
+    expect(
+      synthesizeClause('Annual family income should not exceed ₹2,50,000.'),
+    ).toEqual({ field: 'annualIncome', op: 'lte', value: 250000 });
+  });
+
+  it('leaves an unqualified figure alone', () => {
+    // No period stated. Assuming monthly would invent a limit twelve times
+    // larger than the government wrote, so the plain reading wins.
+    expect(
+      synthesizeClause('Income should not exceed ₹1,00,000.'),
+    ).toEqual({ field: 'annualIncome', op: 'lte', value: 100000 });
+  });
+});
+
 describe('income', () => {
   it.each([
     [

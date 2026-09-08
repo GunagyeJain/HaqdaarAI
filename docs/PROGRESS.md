@@ -9,7 +9,7 @@ AI coding agent, so continuity lives here rather than in anyone's memory.
 
 ## Current State
 
-*Last updated 2026-09-08 (session 4: Phase 7 interface revamp).*
+*Last updated 2026-09-08 (session 4: Phase 7 interface revamp, F9 and F10).*
 
 The application works end to end. A citizen completes a profile — by typing, or
 by speaking — in any of five languages and receives an explained match against a
@@ -27,7 +27,7 @@ real corpus scraped from myscheme.gov.in — 483 schemes locally,
 | Reliability | graceful degradation | every fallback exercised |
 | Accessibility | WCAG 2.1 AA | clean, 5 locales, desktop + mobile |
 
-Suites: **348 unit/integration · 45 eval · 121 e2e · 8 degraded.** All green.
+Suites: **356 unit/integration · 45 eval · 120 e2e · 8 degraded.** All green.
 
 Local runs show skips, and they are honest ones rather than hidden failures:
 the degradation suite skips because .env.local gives this machine real keys
@@ -96,7 +96,7 @@ Then **Phase 8 — pilot** ([EVALUATION.md](EVALUATION.md) has the protocol).
 
 1. **Human sign-off on the corpus audit** ([AUDIT.md](AUDIT.md)). **Two** samples
    are now done (seeds 1 and 2) and between them found ten defect classes.
-   F1, F2, F4, F5 and F8 are fixed; F3, F6, F7, F9 and F10 are open. What is
+   F1, F2, F4, F5, F8, F9 and F10 are fixed; F3, F6 and F7 are open. What is
    still owed is **a person reading the findings**, because both passes were
    made by the same agent that wrote the code they audit — that is the whole
    reason the item exists and no amount of further self-auditing discharges it.
@@ -108,9 +108,16 @@ Then **Phase 8 — pilot** ([EVALUATION.md](EVALUATION.md) has the protocol).
    than F1 and strictly more harmful. Thirty schemes is 6% of the corpus and
    says nothing about the other 94%.
 
-   **F9 is the most severe open finding.** A comma-separated list of eligible
-   groups ("General, SC, ST categories, SHG members, PWD, Women, and
-   Transgender") becomes a requirement to be all of them simultaneously.
+   **F9 and F10 were fixed 2026-09-08**, each scoped by measuring the corpus
+   rather than by reasoning about it. F9 cost three clauses, all of them wrong.
+   F10's first attempt cost 31 and was too blunt — four schemes state a single
+   ceiling that merely mentions both rural and urban areas — so the guard counts
+   amounts rather than place names and costs 25, every one a sentence stating
+   two different limits we cannot express.
+
+   **What remains open is F3, F6 and F7**, and none is a false negative: a
+   conditional limit applied unconditionally, an inclusive bound read as
+   exclusive, and a duplicated clause.
 2. ~~**Verify the scheduled scrape fires once.**~~ **Done 2026-09-08.** Run
    [34211965790](https://github.com/GunagyeJain/HaqdaarAI/actions/runs/34211965790)
    completed green in 23m34s, every step including the post-scrape verification.
@@ -353,6 +360,9 @@ surprises, and things worth remembering go here:
 | 2026-09-08 | **`vercel.json` pinning `sin1` cut production latency 5.2x**, 2686ms to 512ms. One line, one region. |
 | 2026-09-08 | **A monthly income limit was stored as an annual one** — "monthly income of ₹15,000 or below" became `annualIncome < 15000`, wrongly excluding everyone earning ₹15,001–₹1,80,000 a year, which is the whole population such schemes are for. 28 schemes affected. Found by reading fifteen schemes beside their prose; no automated gate could have caught it, because the number was right and only its period was wrong. |
 | 2026-09-08 | **`groundRuleTree` never called `isGrounded`** — it carried an inlined copy of the same rule, so the exported function was dead code and strengthening it changed nothing in the pipeline. A safety gate with two implementations, one of which never runs, can be improved in the wrong copy and look improved. Now one definition. |
+| 2026-09-08 | **A list of eligible groups is not a list of requirements (F9).** "General, SC, ST categories, SHG members, PWD, Women, and Transgender individuals" names who a scheme is open to; read as a conjunction it demanded disabled AND Scheduled Caste AND female at once, failing the General-category male farmer the sentence names first. F2's defect arriving through commas and a closing "and", which neither earlier guard sees. Scoped to four-plus list items asserting identity twice, so "an SC girl student" survives. One tree changed, three clauses lost, all three wrong. |
+| 2026-09-08 | **Measuring a guard changed the guard, again (F10).** Wildcarding any bullet naming both rural and urban cost 31 clauses — but four schemes state a SINGLE ceiling that merely mentions both areas, and lost their income bound for nothing. Counting currency amounts rather than place names keeps those and costs 25. Reasoning about the corpus would have shipped the blunt version; running against it did not. |
+| 2026-09-08 | **A test that reads a colour must wait for the colour to settle.** Three separate theme assertions failed on values that were correct for the theme they were actually looking at — the page had not finished changing. Polling the end state, and reading every colour in one evaluate, is the only version that measures what a reader sees. An earlier variant of the same test passed against broken code purely because it read two elements at different moments. |
 | 2026-09-08 | **Zero PASS verdicts is correct, so the results page stopped leading with it.** ~60% of corpus clauses are WILDCARD and a wildcard is UNKNOWN forever, so most schemes cannot reach PASS however much a citizen answers. Leading with "you qualify for N" leads with a number that is almost always zero — accurate, useless, and easily read as a rejection of the person rather than a limit of the tool. The page now leads with a shortlist: everything checkable passed, only human verification left. Measured at 22 schemes for a sparse profile. |
 | 2026-09-08 | **The results page scrolled sideways on a phone, and nothing measured it.** Card reasons sit in a grid; a grid item's automatic minimum is its min-content width; the government prose we quote carries raw URLs. One unbreakable token widened a card to 600px inside a 412px phone, Chromium scaled the page to fit, and every line of text got smaller for a reader who may already have low vision. `overflow-wrap: break-word` does NOT fix it — it wraps visually without reducing min-content. The grid items need `min-w-0`. Surfaced only as a Playwright click timing out. |
 | 2026-09-08 | **A selected "not answered" chip receded in dark mode.** It used surface-sunken, which on the dark palette is darker than both the chips beside it and the page ground — lab L 1.63 against a 3.35 page. Inset reads as "chosen" on cream and as a hole on near-black. The general lesson: a depth metaphor that works in one theme can invert in the other. |

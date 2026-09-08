@@ -171,7 +171,7 @@ the `Rs` branch allowed one. Real ceilings were vanishing — `aag` at ₹20,00,
 
 **Corpus after:** zero income ceilings below ₹12,000/year remain, from 29 before.
 
-### F9. A list of eligible groups becomes a requirement to be all of them
+### F9. A list of eligible groups becomes a requirement to be all of them · FIXED
 
 `beds` (Buffalo Entrepreneurship Development Scheme), second sample.
 
@@ -194,7 +194,15 @@ separated list** rather than a slash or the word "or", so the existing guard, sc
 and to `or`/`/`, walks straight past it. It is worse than F2 because it asserts three wrong
 filters at once instead of one.
 
-### F10. A residence-conditional income limit becomes a residence filter
+**Fixed 2026-09-08.** Four or more comma-separated items, closed with and/or, asserting who
+someone *is* more than once. The threshold is the whole scoping decision: *"a woman, belonging
+to the Scheduled Caste, and a resident of Punjab"* is a genuine conjunction with two commas and
+survives, as does *"an SC girl student"*, which has two identities and no list.
+
+**Cost, measured:** one tree changed corpus-wide, three clauses lost, and all three were the
+wrong filters on that one scheme.
+
+### F10. A residence-conditional income limit becomes a residence filter · FIXED
 
 `tls-cl1mc` (Term Loan, Credit Line 1 for Minority Community), second sample.
 
@@ -213,6 +221,16 @@ applicants at a higher ceiling; the stored rule fails every one of them on resid
 F3 is the same shape (a scoped limit applied unconditionally) but stops short of fabricating a
 second filter. Expressing either correctly needs conditional rules the DSL does not have; what
 does not need the DSL is *not asserting the condition as a criterion*.
+
+**Fixed 2026-09-08, in two halves.** Naming both places never asserts a residence — that half is
+free, and it is the invented criterion. Naming both places *and* stating two amounts is a
+conditional limit we cannot express, so the bullet becomes UNKNOWN.
+
+**The first attempt was too blunt and the corpus said so.** Wildcarding any bullet naming both
+places cost 31 clauses, four of them schemes stating a SINGLE ceiling that merely mentions both
+— *"₹3,00,000 in both rural and urban areas"* — which is perfectly modellable. Counting amounts
+rather than place names keeps those and costs 25, every one a sentence stating two different
+limits.
 
 ---
 
@@ -404,12 +422,12 @@ and the honest reading is that the defect rate has not yet been bounded.
       `age between 18 and 50`, `ombgh` has lost `age >= 5`.
 - [x] ~~Audit a second sample with a different seed.~~ Done 2026-09-08, seed 2. Found F8, F9,
       F10, a fourfold duplicate, and a recurrence of F5 under a phrasing seed 1 did not contain.
-- [ ] **Fix F9 (a comma-separated list of eligible groups becomes a conjunction).** The most
-      severe open finding. F2's guard is scoped to gender and to `or`/`/`; this arrives as a
-      comma list and asserts three wrong filters at once. Scope it by measuring, as F2 was — an
-      unscoped rule will discard sound clauses.
-- [ ] **Fix F10 (an invented residence filter).** The narrower half is cheap and worth doing on
-      its own: never assert `residence` from a parenthetical that is qualifying an amount.
+- [x] ~~**Fix F9 (a comma-separated list of eligible groups becomes a conjunction).**~~ Done
+      2026-09-08. Scoped by measuring, as F2 was: one tree changed, three clauses lost, all
+      three wrong.
+- [x] ~~**Fix F10 (an invented residence filter).**~~ Done 2026-09-08, and the first attempt was
+      too blunt — the corpus showed it discarding four sound income bounds, so the guard counts
+      amounts rather than place names.
 - [ ] **Widen F5's residency vocabulary** to cover "lived in", and re-check the two exceptions
       that made the original fix delicate.
 - [ ] **Deduplicate identical leaf clauses** within one scheme (F7). Cosmetic, cheap, and

@@ -169,6 +169,11 @@ test.describe('theme switch', () => {
     await page.goto('/en?step=4');
     await page.getByRole('button', { name: 'Switch to dark mode' }).click();
 
+    // Wait for the theme the measurement depends on. Without this the test
+    // sampled a light page under parallel load and failed on values that were
+    // correct for the theme it was actually looking at.
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+
     const group = page.getByRole('group', {
       name: 'Do you hold a Below Poverty Line (BPL) card?',
     });
@@ -177,32 +182,57 @@ test.describe('theme switch', () => {
       'true',
     );
 
-    const lightness = await page.evaluate(() => {
-      const read = (element: Element) => {
-        const background = getComputedStyle(element).backgroundColor;
-        const lab = /^lab\(([\d.]+)/.exec(background);
-        const oklab = /^oklab\(([\d.]+)/.exec(background);
-        const rgb = /^rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(background);
+    /**
+     * Polled, and all three colours read in ONE evaluate.
+     *
+     * Both matter. Reading the chips one after another samples different
+     * moments of a colour transition, and the later read is spuriously darker
+     * -- that race made an earlier version of this test pass against the broken
+     * code. And the settled state is what a reader actually looks at: an
+     * immediate read caught the page still on the old palette and failed on
+     * values that were correct for the theme it was looking at.
+     */
+    await expect
+      .poll(async () =>
+        page.evaluate(() => {
+          const read = (element: Element) => {
+            const background = getComputedStyle(element).backgroundColor;
+            const lab = /^lab\(([\d.]+)/.exec(background);
+            const oklab = /^oklab\(([\d.]+)/.exec(background);
+            const rgb = /^rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(background);
 
-        if (lab) return Number(lab[1]);
-        if (oklab) return Number(oklab[1]) * 100;
-        if (rgb) {
-          return (Number(rgb[1]) * 0.299 + Number(rgb[2]) * 0.587 + Number(rgb[3]) * 0.114) / 2.55;
-        }
-        return Number.NaN;
-      };
+            if (lab) return Number(lab[1]);
+            if (oklab) return Number(oklab[1]) * 100;
+            if (rgb) {
+              return (
+                (Number(rgb[1]) * 0.299 + Number(rgb[2]) * 0.587 + Number(rgb[3]) * 0.114) / 2.55
+              );
+            }
+            return Number.NaN;
+          };
 
-      const container = document.querySelector('[role="group"][aria-label*="Below Poverty"]')!;
-      const buttons = Array.from(container.querySelectorAll('button'));
-      const chosen = buttons.find((button) => button.getAttribute('aria-pressed') === 'true')!;
-      const other = buttons.find((button) => button.getAttribute('aria-pressed') === 'false')!;
+          const container = document.querySelector(
+            '[role="group"][aria-label*="Below Poverty"]',
+          );
+          if (!container) return 'no chips yet';
 
-      return { chosen: read(chosen), other: read(other), ground: read(document.body) };
-    });
+          const buttons = Array.from(container.querySelectorAll('button'));
+          const chosen = buttons.find((b) => b.getAttribute('aria-pressed') === 'true');
+          const other = buttons.find((b) => b.getAttribute('aria-pressed') === 'false');
+          if (!chosen || !other) return 'no selection yet';
 
-    // A selection must sit above the page, not below it.
-    expect(lightness.chosen).toBeGreaterThan(lightness.ground);
-    expect(lightness.chosen).toBeGreaterThan(lightness.other);
+          const ground = read(document.body);
+          if (ground > 50) return `still light (ground ${ground})`;
+
+          // A selection must sit above the page, not below it.
+          if (read(chosen) <= ground) return `chip below the page (${read(chosen)} <= ${ground})`;
+          if (read(chosen) <= read(other)) {
+            return `chip below its neighbours (${read(chosen)} <= ${read(other)})`;
+          }
+          return 'chosen stands out';
+        }),
+      )
+      .toBe('chosen stands out');
   });
   test('switching language keeps the chosen theme', async ({ page }) => {
     /**

@@ -33,6 +33,14 @@ export interface SchemeSummary {
 
 export interface MatchResultItem extends MatchedScheme {
   scheme: SchemeSummary;
+  /**
+   * The criteria we refuse to model, in the government's own words -- what a
+   * human still has to check. Empty for a fully modelled scheme.
+   *
+   * Extracted server-side from the rule tree. The tree itself never reaches the
+   * client; only these strings do.
+   */
+  unmodelledCriteria: string[];
 }
 
 export interface MatchResult {

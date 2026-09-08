@@ -1,7 +1,8 @@
 import { sql } from 'drizzle-orm';
 import { getDb } from '../../db';
-import type { LeafClause, Profile, ProfileField, Verdict } from '../rules/types';
+import type { LeafClause, Profile, ProfileField, RuleNode, Verdict } from '../rules/types';
 import type { MatchResult, MatchResultItem } from './types';
+import { unmodelledCriteria } from './unmodelled';
 
 /**
  * The API tier's single entry point into the matcher.
@@ -26,6 +27,7 @@ type MatchRow = {
   summary: Localized;
   ministry: string | null;
   state: string | null;
+  eligibility: RuleNode;
   source_prose: string;
   source_url: string;
   needs_review: boolean;
@@ -47,6 +49,8 @@ function toItem(row: MatchRow, locale: string): MatchResultItem {
     matchedClauses: row.matched_clauses ?? [],
     failedClauses: row.failed_clauses ?? [],
     unknownFields: row.unknown_fields ?? [],
+    // Only the strings cross to the client -- never the tree they came from.
+    unmodelledCriteria: unmodelledCriteria(row.eligibility),
     scheme: {
       id: row.scheme_id,
       slug: row.slug,
@@ -67,7 +71,7 @@ export async function matchProfile(profile: Profile, locale: string): Promise<Ma
   const rows = await db.execute<MatchRow>(sql`
     select
       m.scheme_id, m.verdict, m.matched_clauses, m.failed_clauses, m.unknown_fields,
-      s.slug, s.name, s.summary, s.ministry, s.state,
+      s.slug, s.name, s.summary, s.ministry, s.state, s.eligibility,
       s.source_prose, s.source_url, s.needs_review
     from match_schemes(${JSON.stringify(profile)}::jsonb) m
     join schemes s on s.id = m.scheme_id

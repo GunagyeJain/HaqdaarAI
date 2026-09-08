@@ -12,8 +12,9 @@ test.describe('typed-only journey', () => {
   test('completes a profile and gets explained results', async ({ page }) => {
     await page.goto('/en');
 
-    // Nothing is shown before the citizen says anything.
-    await expect(page.getByText('Tell us a little about yourself')).toBeVisible();
+    // The form is the whole first page now. The results used to occupy a second
+    // column that stood empty until submit, which is the defect this replaced.
+    await expect(page.getByRole('heading', { name: 'What we found' })).toHaveCount(0);
 
     await page.locator('#input-age').fill('42');
     await page.locator('#input-state').selectOption('PB');
@@ -69,8 +70,16 @@ test.describe('typed-only journey', () => {
 
   test('never coerces an unanswered field into a No', async ({ page }) => {
     // INVARIANT 6: absence of information is not disqualification. A profile
-    // with only an age must not produce any FAIL on unanswered fields.
+    // with only an age must leave the unanswered fields UNKNOWN, never FAIL.
     await page.goto('/en');
+
+    // Boolean fields offer an explicit "Not answered", and it is the default.
+    const bplGroup = page.getByRole('group', { name: /Below Poverty Line/ });
+    await expect(bplGroup.getByRole('button', { name: 'Not answered' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+
     await page.locator('#input-age').fill('30');
     await page.getByRole('button', { name: 'Find my schemes' }).click();
 
@@ -78,12 +87,8 @@ test.describe('typed-only journey', () => {
       timeout: 20_000,
     });
 
-    // Boolean fields offer an explicit "Not answered" state.
-    const bplGroup = page.getByRole('group', { name: /Below Poverty Line/ });
-    await expect(bplGroup.getByRole('button', { name: 'Not answered' })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    );
+    // And the answer that comes back says "may qualify" rather than "no".
+    await expect(page.getByText(/\d+ you may qualify for/)).toBeVisible();
   });
 
   test('tells the citizen their answers are not stored', async ({ page }) => {
@@ -105,4 +110,29 @@ test.describe('typed-only journey', () => {
       timeout: 20_000,
     });
   });
+  test('submitting moves to the results route', async ({ page }) => {
+    await page.goto('/en');
+
+    await page.locator('#input-state').selectOption('PB');
+    await page.getByRole('button', { name: 'Find my schemes' }).click();
+
+    await expect(page).toHaveURL(/\/en\/results/);
+    await expect(page.getByRole('heading', { name: 'What we found' })).toBeVisible({
+      timeout: 20_000,
+    });
+  });
+
+  test('opening the results directly returns you to the form, and says why', async ({ page }) => {
+    /**
+     * INVARIANT 5, at the one moment a citizen can see it. Nothing is stored,
+     * so a reloaded or shared results URL has no profile behind it. Returning
+     * to the form and saying so tells them something true about how their data
+     * is handled, exactly when it is credible.
+     */
+    await page.goto('/en/results');
+
+    await expect(page).toHaveURL(/\/en(\?|$)/);
+    await expect(page.getByText(/we don.t keep your answers/i)).toBeVisible();
+  });
+
 });

@@ -12,6 +12,7 @@ import { setRequestLocale } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
 import { themeScript } from '@/components/theme-toggle';
+import { ProfileProvider } from '@/lib/profile-state';
 import { routing } from '@/i18n/routing';
 import '../globals.css';
 
@@ -131,7 +132,13 @@ export default async function LocaleLayout({
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body className="min-h-dvh antialiased">
-        <NextIntlClientProvider>{children}</NextIntlClientProvider>
+        <NextIntlClientProvider>
+          {/* The profile lives here rather than on the page so that moving
+              between the form and the results is a client navigation that keeps
+              it. It is still React state and nothing else -- invariant 5 is
+              unchanged, and a reload genuinely loses everything. */}
+          <ProfileProvider locale={locale}>{children}</ProfileProvider>
+        </NextIntlClientProvider>
       </body>
     </html>
   );

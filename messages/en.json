@@ -89,6 +89,7 @@
     }
   },
   "results": {
+    "expired": "We don't keep your answers, so we can't reopen your results. It only takes a minute to fill in again.",
     "heading": "What we found",
     "summary": "{pass} you qualify for, {unknown} you may qualify for, out of {total} schemes checked.",
     "empty": "Tell us a little about yourself to see schemes.",

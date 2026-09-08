@@ -1,76 +1,33 @@
 import { useTranslations } from 'next-intl';
 import { setRequestLocale } from 'next-intl/server';
-import { LocaleSwitcher } from '@/components/locale-switcher';
 import { ProfileForm } from '@/components/profile-form';
-import { ThemeToggle } from '@/components/theme-toggle';
-import { ResultsPanel } from '@/components/results-panel';
+import { SiteHeader } from '@/components/site-header';
 import { VoiceConsole } from '@/components/voice-console';
-import { ProfileProvider } from '@/lib/profile-state';
 
-export default async function HomePage({ params }: { params: Promise<{ locale: string }> }) {
+export default async function HomePage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ locale: string }>;
+  searchParams: Promise<{ expired?: string }>;
+}) {
   const { locale } = await params;
+  const { expired } = await searchParams;
   setRequestLocale(locale);
 
-  return (
-    <ProfileProvider locale={locale}>
-      <Home />
-    </ProfileProvider>
-  );
+  return <Home expired={expired === '1'} />;
 }
 
-/**
- * The mark: an open doorway.
- *
- * Haqdaar means "one who is rightfully entitled", and the thing being offered
- * is a way in — so the mark is a door standing open rather than a crest or a
- * seal. Seals say "this is official"; the barrier here is that people already
- * assume it is official and assume it is not for them.
- *
- * Drawn rather than lettered so it carries no script, and works identically in
- * all five locales.
- */
-function Mark() {
-  return (
-    <span
-      aria-hidden="true"
-      className="grid size-9 shrink-0 place-items-center rounded-[0.7rem] bg-[var(--color-brand)]"
-    >
-      <svg viewBox="0 0 24 24" className="size-5" fill="none" aria-hidden="true">
-        <path
-          d="M5 21V9.5a7 7 0 0 1 14 0V21"
-          stroke="var(--color-brand-on)"
-          strokeWidth="2.1"
-          strokeLinecap="round"
-        />
-        <path
-          d="M12 21v-6.5"
-          stroke="var(--color-brand-on)"
-          strokeWidth="2.1"
-          strokeLinecap="round"
-        />
-      </svg>
-    </span>
-  );
-}
-
-function Home() {
+function Home({ expired }: { expired: boolean }) {
   const t = useTranslations('home');
-  const tApp = useTranslations('app');
   const tPrivacy = useTranslations('privacy');
+  const tDisclaimer = useTranslations('app');
+  const tResults = useTranslations('results');
 
   return (
     <div className="min-h-dvh">
       <main className="mx-auto flex min-h-dvh w-full max-w-6xl flex-col px-5 pb-10 pt-5 sm:px-8">
-        <header className="flex items-center justify-between gap-4">
-          <span className="flex items-center gap-2.5">
-            <Mark />
-            <span className="text-[1.05rem] font-bold tracking-tight">{tApp('name')}</span>
-          </span>
-          <span className="flex items-center gap-2">
-            <LocaleSwitcher />
-            <ThemeToggle />
-          </span>
-        </header>
+        <SiteHeader />
 
         {/* Calm, but not so airy that the form is pushed off the first screen.
             An earlier pass gave the hero the entire phone viewport, so the only
@@ -105,25 +62,27 @@ function Home() {
           </p>
         </div>
 
-        {/* One column on a phone, which is the assumed device. The results
-            column only appears beside the form once there is room for both. */}
-        <div className="grid flex-1 items-start gap-7 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] lg:gap-12">
-          <div className="flex flex-col gap-6">
-            {/* Voice sits above the form deliberately: it is an accelerant, and
-                the form beneath it is always the fallback and always complete. */}
-            <VoiceConsole />
-            <ProfileForm />
-          </div>
+        {expired && (
+          <p
+            role="status"
+            className="mb-6 rounded-xl border border-[var(--color-border-strong)] bg-[var(--color-surface-raised)] px-4 py-3 text-sm leading-relaxed"
+          >
+            {tResults('expired')}
+          </p>
+        )}
 
-          {/* Sticky on desktop so verdicts stay in view while the form is
-              edited; static on phones, where sticky panels steal the screen. */}
-          <div className="lg:sticky lg:top-6">
-            <ResultsPanel />
-          </div>
+        {/* One column, always. The results used to sit in a second column that
+            was empty until submit, so desktop opened on half a screen of
+            nothing. They now have a route of their own. */}
+        <div className="flex flex-col gap-6">
+          {/* Voice sits above the form deliberately: it is an accelerant, and
+              the form beneath it is always the fallback and always complete. */}
+          <VoiceConsole />
+          <ProfileForm />
         </div>
 
         <footer className="mt-12 border-t border-[var(--color-border)] pt-6 text-[0.8rem] leading-relaxed text-[var(--color-ink-muted)] sm:text-sm">
-          {tApp('disclaimer')}
+          {tDisclaimer('disclaimer')}
         </footer>
       </main>
     </div>

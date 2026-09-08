@@ -17,6 +17,7 @@ import {
   type Residence,
   type StateCode,
 } from '@/domain/rules/types';
+import { useRouter } from '@/i18n/navigation';
 import { useProfile } from '@/lib/profile-state';
 import { STATE_LABELS } from '@/lib/state-labels';
 import { BooleanField, NumberField, SelectField } from './fields';
@@ -30,6 +31,7 @@ import { BooleanField, NumberField, SelectField } from './fields';
  */
 export function ProfileForm() {
   const t = useTranslations('profile');
+  const router = useRouter();
   const {
     profile,
     setField,
@@ -64,7 +66,11 @@ export function ProfileForm() {
       className="flex flex-col gap-1"
       onSubmit={(event) => {
         event.preventDefault();
-        void runMatch();
+        // Navigate only on success, so a failed match leaves the citizen on the
+        // form with their answers intact and the error visible beside them.
+        void runMatch().then((matched) => {
+          if (matched) router.push('/results');
+        });
       }}
     >
       <div className="mb-3">

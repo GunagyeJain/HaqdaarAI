@@ -32,7 +32,8 @@ interface ProfileState {
   highlightedField: ProfileField | null;
   setHighlightedField: (field: ProfileField | null) => void;
 
-  runMatch: () => Promise<void>;
+  /** Resolves true when a result was stored, false when the request failed. */
+  runMatch: () => Promise<boolean>;
   answeredCount: number;
 }
 
@@ -72,7 +73,7 @@ export function ProfileProvider({
     setHighlightedField(null);
   }, []);
 
-  const runMatch = useCallback(async () => {
+  const runMatch = useCallback(async (): Promise<boolean> => {
     setIsMatching(true);
     setError(null);
 
@@ -95,8 +96,12 @@ export function ProfileProvider({
       setResult(data.result);
       setNextQuestion(data.nextQuestion);
       setHighlightedField(null);
+      return true;
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'match failed');
+      // The caller navigates to the results route only on a true, so a failed
+      // match leaves the citizen on the form with their answers intact.
+      return false;
     } finally {
       setIsMatching(false);
     }

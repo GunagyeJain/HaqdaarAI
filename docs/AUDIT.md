@@ -60,7 +60,7 @@ runs, is a gate that can be strengthened in the wrong copy and appear to have be
 `pnpm db:renormalize` now yields `annualIncome lt 180000` for `mrcbspbocwwb`, and the corpus-wide
 modelled-clause count returned to 1053 from the 1030 the grounding rejection had cost.
 
-### F2. "Widow of an Ex-serviceman" becomes "must be female"
+### F2. "Widow of an Ex-serviceman" becomes "must be female" · FIXED
 
 `sg-sw` (Spectacle Grant, Sainik Welfare).
 
@@ -74,6 +74,33 @@ gender eq "female"
 The sentence describes two eligible groups, joined by *or*. The model kept only the second and
 turned it into a hard filter, so **every male ex-serviceman — the scheme's primary beneficiary —
 is failed outright.** An OR was flattened into an AND, and the wrong branch survived.
+
+**Fixed 2026-09-08.** A disjunction guard already existed and already did the right thing — it
+declines to assert anything from a sentence offering alternatives. It only recognised the *word*
+"or", so a slash walked straight past it. The gap was that narrow.
+
+**Scoping the fix was the hard part, and the first two attempts were wrong.** Both were caught by
+measuring against the real corpus, not by reasoning about it.
+
+Treating every slash as an alternation discarded **76 sound clauses**, most of them income
+bounds. This prose is full of slashes that are not choices: *"Annual Income of Parents/Guardian
+should not be more than Rs. 60,000"*, *"he/she"*, *"professional/Non-Professional"*. That cap is
+the same cap whoever earns it. Restricting the rule to clauses that cannot hold alternatives was
+closer, and still discarded those same bounds.
+
+The distinction that actually holds: **a clause anchored to a number is unharmed by a slash
+between nouns; a clause anchored to a bare noun is exactly what alternation breaks.** One word
+anywhere in a sentence asserts gender, which is why "Ex-serviceman/Widow" keeps the second branch
+and silently drops the first. The guard is therefore scoped to gender.
+
+`SC/ST category` is safe under all three versions and worth stating: it becomes
+`category in [sc, st]`, which represents the choice rather than picking from it. That is what
+correct handling of an alternation looks like.
+
+**Cost, measured rather than estimated:** 34 clauses corpus-wide (3%), all in bullets that
+genuinely are alternations, where asserting anything from one branch was wrong anyway. Ten
+schemes lost a gender filter and 73 keep one. A male ex-serviceman now sees UNKNOWN where he
+previously saw a flat no.
 
 ### F3. A conditional income limit applied unconditionally
 
@@ -194,7 +221,10 @@ schemes this project exists to surface.
 - [x] ~~**Fix F1 (monthly → annual).**~~ Done 2026-09-08, and it uncovered a duplicated
       grounding rule in the process. Production picks it up on the next deploy plus a
       `db:renormalize` against the production database.
-- [ ] **Fix F2 (or-flattening into a gender filter).** Highest single-scheme harm.
+- [x] ~~**Fix F2 (or-flattening into a gender filter).**~~ Done 2026-09-08.
+- [ ] **The slash is handled; the word "or" is still blunt.** "SC or ST category" wildcards the
+      whole bullet, while "SC/ST category" resolves to `category in [sc, st]`. The second is
+      better, and the word-based guard could learn the same trick.
 - [ ] Decide on F3, F4 and the Severity 3 disappearances.
 - [ ] Re-run `pnpm db:renormalize` after any normaliser change, then re-audit with the same seed
       and diff the output.

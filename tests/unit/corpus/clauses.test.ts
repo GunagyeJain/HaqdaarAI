@@ -109,6 +109,59 @@ describe('income stated per month', () => {
   });
 });
 
+/**
+ * SLASH ALTERNATIVES (audit finding F2, docs/AUDIT.md).
+ *
+ * The disjunction guard already declines to assert anything from a sentence
+ * offering alternatives, because conjoining alternatives is a false negative.
+ * It only recognised the WORD "or", so a slash slipped past it:
+ *
+ *   "The applicant should be an Ex-serviceman/Widow of an Ex-serviceman."
+ *   -> gender eq female
+ *
+ * which fails every male ex-serviceman — the scheme’s primary beneficiary —
+ * on a scheme that plainly names them first.
+ *
+ * The counter-examples matter as much as the examples. A slash is common in
+ * this corpus for things that are not choices at all: "₹15,000/-", markdown
+ * link targets, and URLs full of them. Treating those as alternatives would
+ * discard good clauses, including the income bound fixed in F1.
+ */
+describe('alternatives separated by a slash', () => {
+  it('declines to assert a gender taken from one branch', () => {
+    const clauses = synthesizeClauses(
+      'The applicant should be an Ex-serviceman/Widow of an Ex-serviceman.',
+    );
+
+    expect(clauses).toHaveLength(1);
+    expect(clauses[0]).toMatchObject({ op: 'WILDCARD', reason: 'ambiguous' });
+  });
+
+  it('declines when both genders are offered', () => {
+    const clauses = synthesizeClauses(
+      'The minimum age limit of the beneficiary (male/female) will be 18 years.',
+    );
+
+    expect(clauses.every((c) => 'op' in c && c.op === 'WILDCARD')).toBe(true);
+  });
+
+  it('does not treat a rupee suffix as an alternative', () => {
+    // "₹15,000/-" is a slash, and discarding this clause would undo F1.
+    expect(
+      synthesizeClauses('The applicant should have a monthly income of ₹15,000/- below.'),
+    ).toEqual([{ field: 'annualIncome', op: 'lt', value: 180000 }]);
+  });
+
+  it('does not treat a link target as an alternative', () => {
+    // Markdown link targets and URLs are full of slashes that mean nothing.
+    const clauses = synthesizeClauses(
+      'The applicant should be the Widow of an [Ex-serviceman](https://sainik.py.gov.in/definition).',
+    );
+
+    expect(clauses).toEqual([{ field: 'gender', op: 'eq', value: 'female' }]);
+  });
+});
+
 describe('income', () => {
   it.each([
     [

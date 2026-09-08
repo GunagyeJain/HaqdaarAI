@@ -54,6 +54,31 @@ const EXCEPTION_MARKERS =
 const DISJUNCTION_MARKERS =
   /\b(?:or|either)\b(?!\s*(?:more|above|higher|greater|less|below|lower|fewer|older|younger|equal|over|under|before|after|上))/i;
 
+/**
+ * The same either/or, written with a slash rather than the word.
+ *
+ * "an Ex-serviceman/Widow of an Ex-serviceman" offers two eligible groups.
+ * Read as a conjunction it asserted `gender = female` and failed every male
+ * ex-serviceman, on a scheme that names them first (audit finding F2).
+ *
+ * Only a slash joining two words counts. This corpus uses slashes constantly
+ * for things that are not choices — "₹15,000/-" ends in a hyphen, and link
+ * targets and URLs are full of them — and treating those as alternatives
+ * would discard sound clauses. URLs are stripped before the test rather than
+ * pattern-matched around.
+ */
+const SLASH_ALTERNATION = /(?<=\w)\s*\/\s*(?=\w)/;
+
+/**
+ * Unwraps markdown links to their label and drops bare URLs.
+ *
+ * The label has to survive intact. Removing only the target leaves
+ * "[Ex-serviceman]/Widow", where the character before the slash is a bracket,
+ * and an alternation between two words stops looking like one.
+ */
+const stripLinks = (text: string): string =>
+  text.replace(/\[([^\]]*)\]\([^)]*\)/g, '$1').replace(/https?:\/\/\S+/g, '');
+
 const AGE_CONTEXT = /\b(?:age|aged|years?|yrs?)\b/i;
 const INCOME_CONTEXT = /\bincome\b/i;
 
@@ -309,7 +334,29 @@ export function synthesizeClauses(prose: string): RuleNode[] {
   // and "a woman or an SC applicant" would conjoin two alternatives into a
   // requirement to be both. Either is a false negative, so when a disjunction
   // sits alongside something we matched, we decline to assert it.
-  if (DISJUNCTION_MARKERS.test(text)) {
+  // Tested against link-free text: a URL is not an offer of alternatives.
+  const readable = stripLinks(text);
+
+  // Scoped to gender, and the scoping is the whole point.
+  //
+  // A clause anchored to a NUMBER is unharmed by a slash between nouns: the
+  // ₹60,000 cap in "Annual Income of Parents/Guardian should not be more than
+  // Rs. 60,000" is the same cap whoever earns it. "Parents/Guardian",
+  // "he/she" and "professional/Non-Professional" are compounds, not choices,
+  // and they are everywhere in this corpus — an unscoped slash rule discarded
+  // 76 sound clauses, most of them income bounds, which are the most
+  // decision-relevant field there is.
+  //
+  // A clause anchored to a BARE NOUN is exactly what alternation breaks. One
+  // word anywhere in the sentence asserts gender, so "Ex-serviceman/Widow"
+  // keeps the second branch and silently drops the first.
+  //
+  // "SC/ST category" is safe either way: it becomes `category in [sc, st]`,
+  // which represents the choice rather than picking from it.
+  const assertsGender = found.some((node) => 'field' in node && node.field === 'gender');
+  const slashSplitsCriteria = assertsGender && SLASH_ALTERNATION.test(readable);
+
+  if (DISJUNCTION_MARKERS.test(readable) || slashSplitsCriteria) {
     return [wildcard(text, 'ambiguous')];
   }
 

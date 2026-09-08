@@ -86,8 +86,20 @@ jobs:
       - name: Install Playwright browsers
         run: pnpm exec playwright install --with-deps chromium
 
+      # BOTH projects, deliberately. This ran --project=chromium only, so the
+      # mobile project had never executed in CI at all -- and the target user is
+      # far likelier to be on a mid-range Android than on a desktop.
+      #
+      # Two real defects hid behind that. A typed-journey test asserted an
+      # element rendered `hidden lg:block`, so it could never pass on a phone
+      # and had been failing unnoticed. And the results page scrolled sideways
+      # on a 412px viewport, which no desktop run could see.
+      #
+      # The mobile project is Chromium with device emulation, so the browser
+      # install above already covers it. The cost is wall-clock, and a gate that
+      # never runs on the assumed device is not a gate.
       - name: End-to-end tests
-        run: pnpm test:e2e --project=chromium
+        run: pnpm test:e2e
 
       - name: Upload Playwright report
         if: ${{ !cancelled() }}
